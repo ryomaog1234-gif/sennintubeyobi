@@ -67,7 +67,8 @@ apis = [
 apichannels = apis.copy()
 apicomments = apis.copy()
 
-os.chmod("./senninverify", 0o755)
+# ★ ここだけ修正（存在しない場合に500を出さない）
+os.path.exists("./senninverify") and os.chmod("./senninverify", 0o755)
 
 session = requests.Session()
 session.headers.update({"User-Agent": "Mozilla/5.0"})
