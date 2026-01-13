@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ログイン | 仙人Tube</title>
+
+    <style>
+        body {
+            font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            height: 100vh;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #ff4d4d, #ffb347);
+        }
+
+        .login-form {
+            width: 320px;
+            padding: 30px 25px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            text-align: center;
+            animation: fadeIn 0.8s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo {
+            font-size: 26px;
+            font-weight: 800;
+            margin-bottom: 5px;
+            color: #ff2d2d;
+        }
+
+        .subtitle {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .login-form input {
+            width: 100%;
+            padding: 12px;
+            font-size: 15px;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            outline: none;
+            margin-bottom: 10px;
+            transition: 0.3s;
+        }
+
+        .login-form input:focus {
+            border-color: #ff2d2d;
+            box-shadow: 0 0 0 2px rgba(255,45,45,0.2);
+        }
+
+        .login-form button {
+            width: 100%;
+            padding: 12px;
+            font-size: 15px;
+            font-weight: bold;
+            color: #fff;
+            background: linear-gradient(135deg, #ff2d2d, #ff6a6a);
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .login-form button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255,45,45,0.4);
+        }
+
+        .error {
+            color: #ff2d2d;
+            font-size: 13px;
+            margin: 8px 0;
+            min-height: 16px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-form">
+        <div class="logo">仙人Tube</div>
+        <div class="subtitle">ログインして続きを見る</div>
+
+        <form id="loginForm">
+            <input type="password" id="password" placeholder="パスワード" required>
+            <div id="error" class="error"></div>
+            <button type="submit">ログイン</button>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', function(event) {
+            event.preventDefault();
+
+            const password = document.getElementById('password').value;
+
+            if (password === '85175') {
+                document.cookie = "yuki=True; path=/";
+                window.location.href = '/';
+            } else {
+                document.getElementById('error').innerText = 'パスワードが正しくありません';
+            }
+        });
+    </script>
+</body>
+</html>
