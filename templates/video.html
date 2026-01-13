@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <title>{{ videotitle }} - 仙人tube</title>
+
+    <link rel="stylesheet" href="/css/pure-min.css">
+    <link rel="stylesheet" href="/css/grids-responsive-min.css">
+    <link rel="stylesheet" href="/css/ionicons.min.css">
+    <link rel="stylesheet" href="/css/default.css">
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+
+    <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+
+    <style>
+        body {
+            background: #f6f8fb;
+            font-family: "Segoe UI","Hiragino Kaku Gothic ProN",sans-serif;
+            color: #222;
+        }
+
+        a { text-decoration: none; color: inherit; }
+
+        /* 共通カード */
+        .h-box {
+            background: white;
+            border-radius: 18px;
+            padding: 18px;
+            margin-bottom: 20px;
+            box-shadow: 0 12px 36px rgba(0,0,0,.08);
+            animation: fadeUp .4s ease both;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ナビ */
+        .navbar {
+            position: sticky;
+            top: 12px;
+            z-index: 10;
+        }
+
+        #searchbox {
+            width: 100%;
+            padding: 14px 18px;
+            border-radius: 999px;
+            border: 1px solid #ddd;
+            transition: box-shadow .2s, transform .2s;
+        }
+
+        #searchbox:focus {
+            outline: none;
+            transform: scale(1.02);
+            box-shadow: 0 0 0 3px rgba(99,102,241,.3);
+        }
+
+        /* プレイヤー */
+        #player-container {
+            padding: 0;
+            overflow: hidden;
+        }
+
+        #player {
+            width: 100%;
+            border-radius: 18px;
+            background: black;
+        }
+
+        /* タイトル */
+        h1 {
+            font-size: 22px;
+            line-height: 1.4;
+        }
+
+        /* チャンネル */
+        .channel-profile {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .channel-profile img {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+        }
+
+        #channel-name {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        /* 関連動画 */
+        .thumbnail {
+            position: relative;
+            border-radius: 14px;
+            overflow: hidden;
+            margin-bottom: 6px;
+        }
+
+        .thumbnail img {
+            width: 100%;
+            border-radius: 14px;
+            transition: transform .3s;
+        }
+
+        a:hover .thumbnail img {
+            transform: scale(1.05);
+        }
+
+        /* 右カラム */
+        .pure-u-lg-1-5 a {
+            display: block;
+            margin-bottom: 14px;
+            transition: transform .2s;
+        }
+
+        .pure-u-lg-1-5 a:hover {
+            transform: translateY(-3px);
+        }
+
+        /* 操作リンク */
+        .pure-u-lg-1-5 > a {
+            background: linear-gradient(135deg,#6366f1,#22d3ee);
+            color: white;
+            padding: 10px 14px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,.2);
+        }
+
+        /* チェックボックス */
+        input[type=checkbox] {
+            transform: scale(1.2);
+            margin-right: 6px;
+        }
+
+        /* アラート */
+        .alert {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #111827;
+            color: white;
+            padding: 14px 18px;
+            border-radius: 14px;
+            box-shadow: 0 14px 40px rgba(0,0,0,.35);
+            animation: slideIn .4s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(50px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .ui-autocomplete {
+            border-radius: 14px;
+            box-shadow: 0 12px 30px rgba(0,0,0,.15);
+        }
+
+        .ui-state-active {
+            background: #6366f1 !important;
+            color: white !important;
+        }
+    </style>
+</head>
+
+<body class="no-theme">
+
+<div class="pure-g">
+    <div class="pure-u-1 pure-u-md-2-24"></div>
+
+    <div class="pure-u-1 pure-u-md-20-24">
+
+        <!-- ナビ -->
+        <div class="pure-g navbar h-box">
+            <div class="pure-u-1">
+                <a href="/requestform">新機能の要望・バグ報告</a> /
+                <a href="/bbs">掲示板</a>
+                <form class="pure-form" action="/search" method="get">
+                    <input type="search" id="searchbox" name="q" placeholder="検索">
+                </form>
+            </div>
+        </div>
+
+        <!-- プレイヤー -->
+        <div id="player-container" class="h-box">
+            <video id="player" controls loop
+                poster="{% if proxy == "True" %}/thumbnail?v={{ videoid }}{% else %}https://img.youtube.com/vi/{{ videoid }}/0.jpg{% endif %}">
+                {% for videourl in videourls %}
+                <source src="{{ videourl }}">
+                {% endfor %}
+            </video>
+        </div>
+
+        <div class="h-box">
+            <h1>{{ videotitle }}</h1>
+        </div>
+
+        <div class="pure-g">
+            <!-- 左 -->
+            <div class="pure-u-1 pure-u-lg-1-5">
+                <a href="{{ videourls[0] }}" target="_blank">⬇ ダウンロード</a>
+                <a href="javascript:navigator.share({title:'動画を共有',url:location.href})">🔗 共有</a>
+                <hr>
+            </div>
+
+            <!-- 中央 -->
+            <div class="pure-u-1 pure-u-lg-3-5">
+                <div class="h-box">
+                    <a href="/channel/{{authorid}}">
+                        <div class="channel-profile">
+                            <img src="{{authoricon}}">
+                            <span id="channel-name">{{ author }}</span>
+                        </div>
+                    </a>
+                    <div id="descriptionWrapper">{{ description | safe }}</div>
+                    <hr>
+                    <div id="comments"></div>
+                </div>
+            </div>
+
+            <!-- 右 -->
+            <div class="pure-u-1 pure-u-lg-1-5">
+                ループ再生 <input type="checkbox" id="loop" onchange="changeloop()">
+                {% for re in res %}
+                <a href="/watch?v={{ re['id'] }}">
+                    <div class="thumbnail">
+                        <img src="https://img.youtube.com/vi/{{ re['id'] }}/0.jpg">
+                    </div>
+                    <p>{{ re["title"] }}</p>
+                </a>
+                <a href="/channel/{{re['authorId']}}">{{ re["author"] }}</a>
+                {% endfor %}
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+$('#searchbox').autocomplete({
+    source: function(req,res){
+        fetch("/suggest?keyword="+req.term)
+            .then(r=>r.json())
+            .then(d=>res(d))
+    },
+    delay:300
+});
+</script>
+
+</body>
+</html>
