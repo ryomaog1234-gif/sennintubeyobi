@@ -45,25 +45,8 @@ apis = [
     "https://invidious.private.coffee/",
     "https://invidious.protokolla.fi/",
     "https://yt.cdaut.de/",
-    "https://invidious.materialio.us/",
-    "https://invidious.fdn.fr/",
-    "https://invidious.drgns.space/",
-    "https://vid.puffyan.us/",
-    "https://youtube.076.ne.jp/",
-    "https://inv.riverside.rocks/",
-    "https://invidio.xamh.de/",
-    "https://y.com.sb/",
-    "https://invidious.sethforprivacy.com/",
-    "https://invidious.tiekoetter.com/",
-    "https://inv.bp.projectsegfau.lt/",
-    "https://inv.vern.cc/",
-    "https://inv.privacy.com.de/",
-    "https://invidious.rhyshl.live/",
-    "https://invidious.slipfox.xyz/",
-    "https://invidious.weblibre.org/",
-    "https://invidious.namazso.eu/"
-]
 
+]
 apichannels = apis.copy()
 apicomments = apis.copy()
 
