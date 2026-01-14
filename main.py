@@ -6,6 +6,7 @@ import datetime
 import random
 import os
 import subprocess
+import concurrent.futures  # ← 追加（これだけ）
 
 from cache import cache
 
@@ -45,12 +46,11 @@ apis = [
     "https://invidious.private.coffee/",
     "https://invidious.protokolla.fi/",
     "https://yt.cdaut.de/",
-
 ]
+
 apichannels = apis.copy()
 apicomments = apis.copy()
 
-# ★ ここだけ修正（存在しない場合に500を出さない）
 os.path.exists("./senninverify") and os.chmod("./senninverify", 0o755)
 
 session = requests.Session()
@@ -82,24 +82,35 @@ def rotate_api(api_list, api):
     api_list.remove(api)
 
 
+# =========================
+# ★ 最速勝ちAPI（ここだけ変更）
+# =========================
+
 def api_request_core(api_list, url):
-    starttime = time.time()
-
-    for _ in range(len(api_list)):
-        if time.time() - starttime >= max_time - 1:
-            break
-
-        api = api_list[0]
+    def fetch(api):
         try:
             res = session.get(api + url, timeout=max_api_wait_time)
             if res.status_code == 200 and is_json(res.text):
-                return res.text
-            else:
-                print(f"APIエラー: {api}")
-                rotate_api(api_list, api)
+                return api, res.text
         except requests.RequestException:
-            print(f"APIタイムアウト: {api}")
-            rotate_api(api_list, api)
+            pass
+        return None
+
+    starttime = time.time()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(api_list)) as executor:
+        futures = [executor.submit(fetch, api) for api in api_list]
+
+        for future in concurrent.futures.as_completed(futures, timeout=max_time):
+            if time.time() - starttime >= max_time - 1:
+                break
+
+            result = future.result()
+            if result:
+                api, text = result
+                api_list.remove(api)
+                api_list.insert(0, api)
+                return text
 
     raise APItimeoutError("APIがタイムアウトしました")
 
