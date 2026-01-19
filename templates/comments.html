@@ -1,158 +1,125 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Comments</title>
+{% block title %}コメント{% endblock %}
+
+{% block content %}
 
 <style>
-/* ===== 全体 ===== */
-body {
-    background: #f9fafb;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-}
-
-/* ===== コメントカード ===== */
-.comment {
-    background: #ffffff;
-    border-radius: 14px;
-    padding: 14px 16px;
-    margin-bottom: 14px;
-    box-shadow: 0 6px 20px rgba(0,0,0,.06);
-}
-
-/* ===== アバター ===== */
-.comment-avatar img {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    object-fit: cover;
-}
-
-/* ===== 投稿者 ===== */
-.comment-author {
-    font-weight: 600;
-    font-size: 14px;
-    margin-bottom: 4px;
-}
-
-.comment-author a {
-    color: #2563eb;
-    text-decoration: none;
-}
-
-.comment-author a:hover {
-    text-decoration: underline;
-}
-
-/* ===== 本文 ===== */
-.comment-body {
-    font-size: 14px;
-    line-height: 1.6;
-    color: #0f172a;
-    white-space: pre-wrap;
-    margin-bottom: 8px;
-}
-
-/* ===== 操作ボタン ===== */
-.comment-actions {
-    display: flex;
-    gap: 12px;
-}
-
-.reply-toggle {
-    background: none;
-    border: none;
-    color: #2563eb;
-    font-size: 13px;
-    cursor: pointer;
-    padding: 0;
-}
-
-.reply-toggle:hover {
-    text-decoration: underline;
-}
-
-/* ===== 返信エリア ===== */
-.comment-replies {
-    margin-top: 10px;
-    padding-left: 14px;
-    border-left: 2px solid #e5e7eb;
-    display: none;
-}
-
-.reply-item {
-    margin-top: 8px;
-    font-size: 13px;
-    color: #374151;
-}
-
-/* ===== スマホ対応 ===== */
-@media (max-width: 600px) {
-    .comment {
-        padding: 12px;
+    :root {
+        --c-bg: #ffffff;
+        --c-card: #f9fafb;
+        --c-border: #e5e7eb;
+        --c-text-main: #111827;
+        --c-text-sub: #6b7280;
+        --c-accent: #ff4f4f;
+        --c-hover: #f3f4f6;
+        --c-shadow: 0 6px 18px rgba(0,0,0,0.06);
     }
 
-    .comment-avatar img {
-        width: 40px;
-        height: 40px;
+    .comments-container {
+        max-width: 860px;
+        margin: 32px auto;
+        padding: 0 20px;
     }
-}
+
+    .comment-card {
+        display: flex;
+        gap: 16px;
+        padding: 18px 20px;
+        margin-bottom: 18px;
+        background: var(--c-card);
+        border-radius: 16px;
+        box-shadow: var(--c-shadow);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .comment-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 28px rgba(0,0,0,0.08);
+    }
+
+    .comment-avatar {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        object-fit: cover;
+        background: #ddd;
+        flex-shrink: 0;
+    }
+
+    .comment-body {
+        flex: 1;
+    }
+
+    .comment-author {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+    }
+
+    .comment-author a {
+        font-weight: 700;
+        font-size: 14px;
+        color: var(--c-text-main);
+        text-decoration: none;
+    }
+
+    .comment-author a:hover {
+        color: var(--c-accent);
+        text-decoration: underline;
+    }
+
+    .comment-text {
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--c-text-main);
+        word-break: break-word;
+    }
+
+    .comment-text a {
+        color: #2563eb;
+        text-decoration: underline;
+    }
+
+    @media (max-width: 640px) {
+        .comment-card {
+            padding: 14px;
+            border-radius: 14px;
+        }
+
+        .comment-avatar {
+            width: 36px;
+            height: 36px;
+        }
+    }
 </style>
-</head>
 
-<body>
+<div class="comments-container">
 
-{% for comment in comments %}
-<div class="comment">
-    <div class="pure-g" style="width:100%">
+    {% for comment in comments %}
+    <div class="comment-card">
 
-        <div class="comment-avatar pure-u-4-24 pure-u-md-2-24">
-            <img loading="lazy" src="{{ comment["authoricon"] }}">
-        </div>
+        <a href="/channel/{{ comment.authorid }}">
+            <img
+                src="{{ comment.authoricon }}"
+                class="comment-avatar"
+                alt="{{ comment.author }}">
+        </a>
 
-        <div class="pure-u-20-24 pure-u-md-22-24">
-
+        <div class="comment-body">
             <div class="comment-author">
-                <a href="/channel/{{ comment["authorid"] }}">
-                    {{ comment["author"] }}
+                <a href="/channel/{{ comment.authorid }}">
+                    {{ comment.author }}
                 </a>
             </div>
 
-            <div class="comment-body">
-                {{ comment["body"] | safe }}
+            <div class="comment-text">
+                {{ comment.body | safe }}
             </div>
-
-            <div class="comment-actions">
-                <button class="reply-toggle" onclick="toggleReplies(this)">
-                    返信を表示
-                </button>
-            </div>
-
-            <div class="comment-replies">
-                <!-- ここに返信を入れる（将来用） -->
-                <div class="reply-item">返信サンプル1</div>
-                <div class="reply-item">返信サンプル2</div>
-            </div>
-
         </div>
+
     </div>
+    {% endfor %}
+
 </div>
-{% endfor %}
 
-<script>
-function toggleReplies(button) {
-    const replies = button.parentElement.nextElementSibling;
-
-    if (replies.style.display === "block") {
-        replies.style.display = "none";
-        button.textContent = "返信を表示";
-    } else {
-        replies.style.display = "block";
-        button.textContent = "返信を非表示";
-    }
-}
-</script>
-
-</body>
-</html>
+{% endblock %}
