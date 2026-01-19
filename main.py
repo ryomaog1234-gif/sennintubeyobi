@@ -9,7 +9,7 @@ import concurrent.futures
 
 from cache import cache
 
-from fastapi import FastAPI, Request, Response, Cookie
+from fastapi import FastAPI, Request, Response, Cookie, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response as RawResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -167,13 +167,8 @@ def get_search(q, page):
 def get_data(videoid):
     t = json.loads(apirequest("api/v1/videos/" + urllib.parse.quote(videoid)))
 
-    # ▼ 通常ストリーム（画質変更用）
     videourls = [i["url"] for i in t["formatStreams"]]
-
-    # ▼ HLS（存在しない場合はNone）
     hls_url = t.get("hlsUrl")
-
-    # ▼ YouTube nocookie
     nocookie_url = f"https://www.youtube-nocookie.com/embed/{videoid}"
 
     return (
@@ -225,6 +220,50 @@ app.mount("/word", StaticFiles(directory="./blog", html=True), name="word")
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 templates = Jinja2Templates(directory="templates")
+
+
+# =========================
+# 高画質ストリーム（追加）
+# =========================
+
+HLS_API_BASE_URL = "https://yudlp.vercel.app/m3u8/"
+
+
+@app.get("/stream/high")
+def stream_high(v: str):
+    # ① 外部 ytdlp HLS（最優先）
+    try:
+        r = requests.get(f"{HLS_API_BASE_URL}{v}", timeout=6)
+        if r.status_code == 200:
+            data = r.json()
+            m3u8s = [f for f in data.get("m3u8_formats", []) if f.get("url")]
+            if m3u8s:
+                best = sorted(
+                    m3u8s,
+                    key=lambda f: int((f.get("resolution") or "0x0").split("x")[-1]),
+                    reverse=True
+                )[0]
+                return RedirectResponse(best["url"])
+    except:
+        pass
+
+    # ② Invidious hlsUrl
+    try:
+        t = json.loads(apirequest("api/v1/videos/" + urllib.parse.quote(v)))
+        if t.get("hlsUrl"):
+            return RedirectResponse(t["hlsUrl"])
+    except:
+        pass
+
+    # ③ MP4 フォールバック
+    try:
+        for f in t.get("formatStreams", []):
+            if f.get("url"):
+                return RedirectResponse(f["url"])
+    except:
+        pass
+
+    raise HTTPException(status_code=503, detail="High quality stream unavailable")
 
 
 # =========================
