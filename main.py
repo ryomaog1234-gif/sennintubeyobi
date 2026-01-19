@@ -170,18 +170,16 @@ def get_search(q, page):
 
 
 # =========================
-# ★ ここだけ拡張（DASH対応）
+# ★ DASH対応（最低720p）
 # =========================
 
 def get_data(videoid):
     t = json.loads(apirequest("api/v1/videos/" + urllib.parse.quote(videoid)))
 
-    # 既存（低画質・互換用）
     videourls = [i["url"] for i in t.get("formatStreams", [])]
     hls_url = t.get("hlsUrl")
     nocookie_url = f"https://www.youtube-nocookie.com/embed/{videoid}"
 
-    # --- DASH（本物の高画質） ---
     adaptive = t.get("adaptiveFormats", [])
 
     audio = None
@@ -194,8 +192,7 @@ def get_data(videoid):
                 audio = f
         elif mime.startswith("video/"):
             h = f.get("height")
-            if h:
-                # mp4優先
+            if h and h >= 720:  # ★ 最低画質を720pに制限
                 if h not in videos or ("mp4" in mime and "mp4" not in videos[h]["type"]):
                     videos[h] = f
 
@@ -229,7 +226,7 @@ def get_data(videoid):
         t["authorThumbnails"][-1]["url"],
         nocookie_url,
         hls_url,
-        dash,  # ★ 追加（index 9）
+        dash,
     )
 
 
@@ -359,7 +356,7 @@ def watch(request: Request, response: Response, v: str, sennin: Union[str, None]
             "authoricon": t[6],
             "nocookie_url": t[7],
             "hls_url": t[8],
-            "dash": t[9],  # ★ 追加
+            "dash": t[9],
         }
     )
 
