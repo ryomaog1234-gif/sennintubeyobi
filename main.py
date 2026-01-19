@@ -47,7 +47,7 @@ apis = [
 apichannels = apis.copy()
 apicomments = apis.copy()
 
-os.path.exists("./yukiverify") and os.chmod("./yukiverify", 0o755)
+os.path.exists("./senninverify") and os.chmod("./senninverify", 0o755)
 
 session = requests.Session()
 session.headers.update({"User-Agent": "Mozilla/5.0"})
@@ -166,15 +166,27 @@ def get_search(q, page):
 
 def get_data(videoid):
     t = json.loads(apirequest("api/v1/videos/" + urllib.parse.quote(videoid)))
+
+    # ▼ 通常ストリーム（画質変更用）
+    videourls = [i["url"] for i in t["formatStreams"]]
+
+    # ▼ HLS（存在しない場合はNone）
+    hls_url = t.get("hlsUrl")
+
+    # ▼ YouTube nocookie
+    nocookie_url = f"https://www.youtube-nocookie.com/embed/{videoid}"
+
     return (
         [{"id": i["videoId"], "title": i["title"], "author": i["author"], "authorId": i["authorId"]}
          for i in t["recommendedVideos"]],
-        list(reversed([i["url"] for i in t["formatStreams"]]))[:2],
+        videourls,
         t["descriptionHtml"].replace("\n", "<br>"),
         t["title"],
         t["authorId"],
         t["author"],
         t["authorThumbnails"][-1]["url"],
+        nocookie_url,
+        hls_url,
     )
 
 
@@ -220,18 +232,18 @@ templates = Jinja2Templates(directory="templates")
 # =========================
 
 @app.get("/", response_class=HTMLResponse)
-def home(request: Request, response: Response, yuki: Union[str, None] = Cookie(None)):
-    if check_cookie(yuki):
-        response.set_cookie("yuki", "True", max_age=7 * 24 * 60 * 60)
+def home(request: Request, response: Response, sennin: Union[str, None] = Cookie(None)):
+    if check_cookie(sennin):
+        response.set_cookie("sennin", "True", max_age=7 * 24 * 60 * 60)
         return templates.TemplateResponse("home.html", {"request": request})
     return RedirectResponse("/word")
 
 
 @app.get("/search", response_class=HTMLResponse)
-def search(request: Request, response: Response, q: str, page: int = 1, yuki: Union[str, None] = Cookie(None)):
-    if not check_cookie(yuki):
+def search(request: Request, response: Response, q: str, page: int = 1, sennin: Union[str, None] = Cookie(None)):
+    if not check_cookie(sennin):
         return RedirectResponse("/")
-    response.set_cookie("yuki", "True", max_age=7 * 24 * 60 * 60)
+    response.set_cookie("sennin", "True", max_age=7 * 24 * 60 * 60)
     return templates.TemplateResponse(
         "search.html",
         {
@@ -244,10 +256,10 @@ def search(request: Request, response: Response, q: str, page: int = 1, yuki: Un
 
 
 @app.get("/watch", response_class=HTMLResponse)
-def watch(request: Request, response: Response, v: str, yuki: Union[str, None] = Cookie(None)):
-    if not check_cookie(yuki):
+def watch(request: Request, response: Response, v: str, sennin: Union[str, None] = Cookie(None)):
+    if not check_cookie(sennin):
         return RedirectResponse("/")
-    response.set_cookie("yuki", "True", max_age=7 * 24 * 60 * 60)
+    response.set_cookie("sennin", "True", max_age=7 * 24 * 60 * 60)
     t = get_data(v)
     return templates.TemplateResponse(
         "video.html",
@@ -261,15 +273,17 @@ def watch(request: Request, response: Response, v: str, yuki: Union[str, None] =
             "authorid": t[4],
             "author": t[5],
             "authoricon": t[6],
+            "nocookie_url": t[7],
+            "hls_url": t[8],
         }
     )
 
 
 @app.get("/channel/{cid}", response_class=HTMLResponse)
-def channel(request: Request, response: Response, cid: str, yuki: Union[str, None] = Cookie(None)):
-    if not check_cookie(yuki):
+def channel(request: Request, response: Response, cid: str, sennin: Union[str, None] = Cookie(None)):
+    if not check_cookie(sennin):
         return RedirectResponse("/")
-    response.set_cookie("yuki", "True", max_age=7 * 24 * 60 * 60)
+    response.set_cookie("sennin", "True", max_age=7 * 24 * 60 * 60)
     t = get_channel(cid)
     return templates.TemplateResponse(
         "channel.html",
