@@ -24,24 +24,6 @@
 
         a { text-decoration: none; color: inherit; }
 
-        .header {
-            position: sticky;
-            top: 0;
-            z-index: 20;
-            background: white;
-            border-bottom: 1px solid #e5e7eb;
-            padding: 12px 20px;
-        }
-
-        #searchbox {
-            width: 100%;
-            max-width: 520px;
-            padding: 10px 16px;
-            border-radius: 999px;
-            border: 1px solid #d1d5db;
-            font-size: 15px;
-        }
-
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -156,11 +138,7 @@
 
 <body>
 
-<div class="header">
-    <form class="pure-form" action="/search">
-        <input type="search" id="searchbox" name="q" placeholder="検索">
-    </form>
-</div>
+{% include "base.html" %}
 
 <div class="container">
 <div class="main-grid">
@@ -228,7 +206,7 @@
 
 <script>
 const urls = {{ videourls | tojson }};
-const hlsUrl = {{ hls_url | tojson }};
+const hlsUrl = "/stream/high?v={{ videoid }}";
 const video = document.getElementById("videoPlayer");
 let hls = null;
 
@@ -239,9 +217,9 @@ video.src = urls[1] || urls[0];
 document.getElementById("qualitySelect").addEventListener("change", e => {
     const index = e.target.value;
 
-    /* ▼ 高画質 → HLS */
+    /* ▼ 高画質 → 高画質ストリームAPI */
     if(index === "0"){
-        if(hlsUrl && Hls.isSupported()){
+        if(Hls.isSupported()){
             if(hls){
                 hls.destroy();
             }
@@ -251,12 +229,12 @@ document.getElementById("qualitySelect").addEventListener("change", e => {
             hls.on(Hls.Events.MANIFEST_PARSED, function () {
                 video.play();
             });
-        }else if(hlsUrl && video.canPlayType("application/vnd.apple.mpegurl")){
+        }else if(video.canPlayType("application/vnd.apple.mpegurl")){
             video.src = hlsUrl;
             video.play();
         }
     }
-    /* ▼ 低画質 → 通常再生 */
+    /* ▼ 低画質 → 通常MP4 */
     else{
         if(hls){
             hls.destroy();
@@ -283,4 +261,4 @@ function setMode(mode){
 </script>
 
 </body>
-</html>
+    </html>
