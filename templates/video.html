@@ -21,7 +21,6 @@
 
         a { text-decoration: none; color: inherit; }
 
-        /* ===== ヘッダー ===== */
         .header {
             position: sticky;
             top: 0;
@@ -46,7 +45,6 @@
             box-shadow: 0 0 0 2px rgba(37,99,235,.2);
         }
 
-        /* ===== レイアウト ===== */
         .container {
             max-width: 1400px;
             margin: 0 auto;
@@ -65,14 +63,12 @@
             }
         }
 
-        /* ===== プレイヤー ===== */
         .player-wrapper video {
             width: 100%;
             background: black;
             border-radius: 14px;
         }
 
-        /* ===== タイトル ===== */
         .video-title {
             font-size: 20px;
             font-weight: 600;
@@ -80,7 +76,6 @@
             line-height: 1.4;
         }
 
-        /* ===== チャンネル ===== */
         .channel-row {
             display: flex;
             align-items: center;
@@ -98,16 +93,15 @@
             font-weight: 600;
         }
 
-        /* ===== 説明 ===== */
         .description {
             background: #f1f5f9;
             border-radius: 12px;
             padding: 14px;
             font-size: 14px;
             line-height: 1.6;
+            margin-bottom: 24px;
         }
 
-        /* ===== 操作 ===== */
         .actions {
             display: flex;
             gap: 10px;
@@ -130,7 +124,6 @@
             border: none;
         }
 
-        /* ===== 関連動画 ===== */
         .related {
             display: flex;
             flex-direction: column;
@@ -166,6 +159,36 @@
         .related-meta {
             font-size: 12px;
             color: #64748b;
+        }
+
+        /* ===== コメントUI（追加） ===== */
+        .comments {
+            margin-top: 20px;
+        }
+
+        .comment {
+            display: flex;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .comment img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+        }
+
+        .comment-author {
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .comment-body {
+            font-size: 14px;
+            line-height: 1.6;
+            white-space: pre-wrap;
         }
 
         .ui-autocomplete {
@@ -207,9 +230,7 @@
                 <a href="/channel/{{authorid}}">
                     <img src="{{authoricon}}">
                 </a>
-                <div>
-                    <div class="channel-name">{{ author }}</div>
-                </div>
+                <div class="channel-name">{{ author }}</div>
             </div>
 
             <div class="actions">
@@ -220,6 +241,25 @@
 
             <div class="description">
                 {{ description | safe }}
+            </div>
+
+            <!-- ===== コメント表示（追加） ===== -->
+            <div class="comments">
+                {% for comment in comments %}
+                <div class="comment">
+                    <img src="{{ comment['authoricon'] }}">
+                    <div>
+                        <div class="comment-author">
+                            <a href="/channel/{{ comment['authorid'] }}">
+                                {{ comment['author'] }}
+                            </a>
+                        </div>
+                        <div class="comment-body">
+                            {{ comment['body'] | safe }}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
             </div>
         </div>
 
@@ -252,4 +292,4 @@ $('#searchbox').autocomplete({
 </script>
 
 </body>
-    </html>
+</html>
