@@ -13,26 +13,26 @@
     <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
 
-    <!-- UI強化CSS -->
     <style>
         body {
-            background: #f6f8fb;
+            background: #f6f7fb;
             font-family: "Segoe UI", "Hiragino Kaku Gothic ProN", sans-serif;
-            color: #222;
+            color: #111827;
+            margin: 0;
         }
 
         a {
-            color: inherit;
             text-decoration: none;
+            color: inherit;
         }
 
-        /* ナビバー */
+        /* ===== ナビバー ===== */
         .navbar {
             background: white;
             padding: 16px;
             border-radius: 16px;
             box-shadow: 0 8px 24px rgba(0,0,0,.06);
-            margin-bottom: 24px;
+            margin: 16px 0 28px;
             position: sticky;
             top: 12px;
             z-index: 10;
@@ -40,51 +40,55 @@
 
         #searchbox {
             width: 100%;
-            padding: 14px 18px;
+            padding: 14px 20px;
             font-size: 16px;
             border-radius: 999px;
-            border: 1px solid #ddd;
-            transition: box-shadow .2s, transform .2s;
+            border: 1px solid #d1d5db;
         }
 
         #searchbox:focus {
             outline: none;
-            transform: scale(1.02);
             box-shadow: 0 0 0 3px rgba(99,102,241,.3);
         }
 
-        /* カード */
-        .h-box {
-            background: white;
-            border-radius: 16px;
-            padding: 14px;
-            margin-bottom: 20px;
-            height: 100%;
-            box-shadow: 0 10px 30px rgba(0,0,0,.08);
-            transition: transform .25s, box-shadow .25s;
-            animation: fadeUp .4s ease both;
+        /* ===== グリッド（自動調整） ===== */
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 20px;
         }
 
-        .h-box:hover {
+        /* ===== カード ===== */
+        .video-card {
+            background: white;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,.08);
+            transition: transform .25s, box-shadow .25s;
+            animation: fadeUp .35s ease both;
+        }
+
+        .video-card:hover {
             transform: translateY(-6px);
-            box-shadow: 0 18px 48px rgba(0,0,0,.15);
+            box-shadow: 0 18px 50px rgba(0,0,0,.18);
         }
 
         /* サムネ */
         .thumbnail {
             position: relative;
+            aspect-ratio: 16 / 9;
             overflow: hidden;
-            border-radius: 12px;
         }
 
         .thumbnail img {
             width: 100%;
-            border-radius: 12px;
-            transition: transform .35s;
+            height: 100%;
+            object-fit: cover;
+            transition: transform .3s;
         }
 
-        .h-box:hover .thumbnail img {
-            transform: scale(1.05);
+        .video-card:hover img {
+            transform: scale(1.06);
         }
 
         .length {
@@ -94,59 +98,53 @@
             background: rgba(0,0,0,.75);
             color: white;
             font-size: 12px;
-            padding: 4px 6px;
-            border-radius: 6px;
+            padding: 4px 8px;
+            border-radius: 8px;
         }
 
-        /* タイトル */
-        .h-box p {
-            margin: 10px 0 4px;
+        /* テキスト */
+        .card-body {
+            padding: 12px 14px 14px;
+        }
+
+        .card-title {
             font-size: 14px;
             line-height: 1.4;
+            margin-bottom: 6px;
+            font-weight: 600;
         }
 
-        /* メタ情報 */
-        .video-card-row {
+        .meta {
             font-size: 12px;
-            color: #666;
+            color: #6b7280;
         }
 
-        .video-card-row a {
+        .meta a {
             color: #2563eb;
+            font-weight: 500;
+        }
+
+        /* チャンネル */
+        .channel-card img {
+            width: 80px;
+            border-radius: 50%;
+            margin: 16px auto 10px;
+            display: block;
         }
 
         /* ページ送り */
         .pager {
-            margin: 30px 0;
-            text-align: right;
+            margin: 40px 0;
+            text-align: center;
         }
 
         .pager a {
-            display: inline-block;
             background: linear-gradient(135deg, #6366f1, #22d3ee);
             color: white;
-            padding: 12px 22px;
+            padding: 14px 26px;
             border-radius: 999px;
             font-weight: bold;
             box-shadow: 0 10px 30px rgba(0,0,0,.25);
-            transition: transform .2s, box-shadow .2s;
-        }
-
-        .pager a:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 14px 40px rgba(0,0,0,.35);
-        }
-
-        /* autocomplete */
-        .ui-autocomplete {
-            border-radius: 14px;
-            box-shadow: 0 12px 30px rgba(0,0,0,.15);
-            padding: 6px;
-        }
-
-        .ui-state-active {
-            background: #6366f1 !important;
-            color: white !important;
         }
 
         /* アニメーション */
@@ -154,72 +152,79 @@
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
+
+        /* ===== 画面別最適化 ===== */
+        @media (max-width: 768px) {
+            .navbar {
+                margin-top: 8px;
+            }
+        }
     </style>
 </head>
 
 <body class="no-theme">
 
 <div class="pure-g">
-    <div class="pure-u-1 pure-u-md-2-24"></div>
+    <div class="pure-u-1 pure-u-md-1-24"></div>
 
-    <div class="pure-u-1 pure-u-md-20-24" id="contents">
+    <div class="pure-u-1 pure-u-md-22-24">
 
-        <!-- 検索バー -->
-        <div class="pure-g navbar">
-            <div class="pure-u-1 pure-u-md-12-24">
-                <form class="pure-form" action="/search" method="get">
-                    <input
-                        type="search"
-                        id="searchbox"
-                        name="q"
-                        value="{{ word }}"
-                        placeholder="検索">
-                </form>
-            </div>
+        <!-- 検索 -->
+        <div class="navbar">
+            <form class="pure-form" action="/search" method="get">
+                <input type="search" id="searchbox" name="q" value="{{ word }}" placeholder="検索">
+            </form>
         </div>
 
         <!-- 結果 -->
-        <div class="pure-g">
+        <div class="results-grid">
             {% for result in results %}
-            <div class="pure-u-1 pure-u-md-1-4">
-                <div class="h-box">
 
-                    {% if result["type"] == "video" %}
-                    <a href="/watch?v={{ result['id'] }}">
-                        <div class="thumbnail">
-                            <img loading="lazy"
-                                 src="{% if proxy == "True" %}/thumbnail?v={{ result['id'] }}{% else %}https://img.youtube.com/vi/{{ result['id'] }}/0.jpg{% endif %}"
-                                 onerror="document.cookie='proxy=True;max-age=2592000;'">
-                            <div class="length">{{result["length"]}}</div>
-                        </div>
-                        <p>{{ result['title'] }}</p>
-                    </a>
-
-                    <div class="video-card-row">
-                        <a href="/channel/{{result['authorId']}}">{{result["author"]}}</a>
+            {% if result["type"] == "video" %}
+            <a href="/watch?v={{ result['id'] }}">
+                <div class="video-card">
+                    <div class="thumbnail">
+                        <img loading="lazy"
+                             src="{% if proxy == "True" %}/thumbnail?v={{ result['id'] }}{% else %}https://img.youtube.com/vi/{{ result['id'] }}/0.jpg{% endif %}"
+                             onerror="document.cookie='proxy=True;max-age=2592000;'">
+                        <div class="length">{{ result["length"] }}</div>
                     </div>
-                    <div class="video-card-row">{{result["published"]}}</div>
-
-                    {% elif result["type"] == "channel" %}
-                    <a href="/channel/{{result["id"]}}">
-                        <center>
-                            <img style="width:60%;border-radius:50%" src="{{result["thumbnail"]}}">
-                        </center>
-                        <p>{{result["author"]}}</p>
-                    </a>
-
-                    {% elif result["type"] == "playlist" %}
-                    <a href="/playlist?list={{result["id"]}}">
-                        <div class="thumbnail">
-                            <img src="https://img.youtube.com/vi/{{ result['thumbnail'] }}/0.jpg">
-                            <div class="length">{{result["count"]}}本</div>
+                    <div class="card-body">
+                        <div class="card-title">{{ result["title"] }}</div>
+                        <div class="meta">
+                            <a href="/channel/{{result['authorId']}}">{{result["author"]}}</a><br>
+                            {{result["published"]}}
                         </div>
-                        <p>{{result["title"]}}</p>
-                    </a>
-                    {% endif %}
-
+                    </div>
                 </div>
-            </div>
+            </a>
+
+            {% elif result["type"] == "channel" %}
+            <a href="/channel/{{result["id"]}}">
+                <div class="video-card channel-card">
+                    <img src="{{result["thumbnail"]}}">
+                    <div class="card-body">
+                        <div class="card-title" style="text-align:center">
+                            {{result["author"]}}
+                        </div>
+                    </div>
+                </div>
+            </a>
+
+            {% elif result["type"] == "playlist" %}
+            <a href="/playlist?list={{result["id"]}}">
+                <div class="video-card">
+                    <div class="thumbnail">
+                        <img src="https://img.youtube.com/vi/{{ result['thumbnail'] }}/0.jpg">
+                        <div class="length">{{result["count"]}}本</div>
+                    </div>
+                    <div class="card-body">
+                        <div class="card-title">{{result["title"]}}</div>
+                    </div>
+                </div>
+            </a>
+            {% endif %}
+
             {% endfor %}
         </div>
 
