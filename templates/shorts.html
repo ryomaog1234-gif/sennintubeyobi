@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block content %}
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Shorts - 仙人tube</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+<style>
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #000;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* ===== 全体 ===== */
+.shorts-container {
+    height: 100vh;
+    overflow-y: scroll;
+    scroll-snap-type: y mandatory;
+    scroll-behavior: smooth;
+}
+
+/* ===== 1ショート ===== */
+.short-item {
+    position: relative;
+    height: 100vh;
+    scroll-snap-align: start;
+    background: #000;
+    will-change: transform;
+}
+
+/* ===== 動画 ===== */
+.short-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* ===== 右側UI ===== */
+.short-actions {
+    position: absolute;
+    right: 12px;
+    bottom: 110px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    align-items: center;
+    color: #fff;
+    transition: transform .25s ease, opacity .25s ease;
+}
+
+.short-action {
+    font-size: 12px;
+    text-align: center;
+}
+
+.short-action span {
+    font-size: 28px;
+    display: block;
+}
+
+/* ===== 下情報 ===== */
+.short-info {
+    position: absolute;
+    left: 14px;
+    bottom: 24px;
+    right: 90px;
+    color: #fff;
+    transition: transform .25s ease, opacity .25s ease;
+}
+
+.short-channel {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+.short-channel-name {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.subscribe-btn {
+    background: #fff;
+    color: #000;
+    border: none;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.subscribe-btn.subscribed {
+    background: #333;
+    color: #fff;
+}
+
+/* ===== スクロールバー非表示 ===== */
+.shorts-container::-webkit-scrollbar {
+    display: none;
+}
+</style>
+</head>
+
+<body>
+
+<div class="shorts-container" id="shortsContainer">
+
+{% for video in shorts %}
+<div class="short-item">
+    <video class="short-video"
+           src="{{ video.stream_url }}"
+           autoplay
+           muted
+           loop
+           playsinline></video>
+
+    <div class="short-actions">
+        <div class="short-action like-btn">
+            <span>❤️</span>
+            <div>{{ video.likeCount or '' }}</div>
+        </div>
+        <div class="short-action">
+            <span>💬</span>
+            <div>{{ video.commentCount or '' }}</div>
+        </div>
+        <div class="short-action">
+            <span>↗</span>
+            <div>共有</div>
+        </div>
+    </div>
+
+    <div class="short-info">
+        <div class="short-channel">
+            <div class="short-channel-name">@{{ video.channelName }}</div>
+            <button class="subscribe-btn" data-channel="{{ video.channelId }}">
+                チャンネル登録
+            </button>
+        </div>
+        <div class="short-title">{{ video.title }}</div>
+    </div>
+</div>
+{% endfor %}
+
+</div>
+
+<script>
+const container = document.getElementById("shortsContainer");
+
+/* ===== 再生制御 ===== */
+function updatePlay() {
+    document.querySelectorAll(".short-video").forEach(v => {
+        const r = v.getBoundingClientRect();
+        if (r.top >= -50 && r.bottom <= window.innerHeight + 50) {
+            v.play();
+        } else {
+            v.pause();
+        }
+    });
+}
+container.addEventListener("scroll", updatePlay);
+updatePlay();
+
+/* ===== スワイプ中のUI追従（公式風） ===== */
+container.addEventListener("scroll", () => {
+    document.querySelectorAll(".short-item").forEach(item => {
+        const rect = item.getBoundingClientRect();
+        const progress = Math.min(Math.abs(rect.top) / window.innerHeight, 1);
+
+        const actions = item.querySelector(".short-actions");
+        const info = item.querySelector(".short-info");
+
+        actions.style.opacity = 1 - progress;
+        info.style.opacity = 1 - progress;
+        actions.style.transform = `translateY(${progress * 20}px)`;
+        info.style.transform = `translateY(${progress * 20}px)`;
+    });
+});
+
+/* ===== タップでミュート ===== */
+document.querySelectorAll(".short-video").forEach(v => {
+    v.addEventListener("click", () => {
+        v.muted = !v.muted;
+    });
+});
+
+/* ===== ダブルタップでいいね ===== */
+let lastTap = 0;
+document.querySelectorAll(".short-video").forEach(v => {
+    v.addEventListener("touchend", () => {
+        const now = Date.now();
+        if (now - lastTap < 300) {
+            const like = v.closest(".short-item").querySelector(".like-btn span");
+            like.textContent = "❤️";
+            like.style.transform = "scale(1.4)";
+            setTimeout(() => like.style.transform = "scale(1)", 150);
+        }
+        lastTap = now;
+    });
+});
+
+/* ===== チャンネル登録 ===== */
+document.querySelectorAll(".subscribe-btn").forEach(btn => {
+    const key = "subscribed_" + btn.dataset.channel;
+    if (localStorage.getItem(key)) {
+        btn.classList.add("subscribed");
+        btn.textContent = "登録済み";
+    }
+    btn.onclick = () => {
+        if (btn.classList.contains("subscribed")) {
+            localStorage.removeItem(key);
+            btn.classList.remove("subscribed");
+            btn.textContent = "チャンネル登録";
+        } else {
+            localStorage.setItem(key, "1");
+            btn.classList.add("subscribed");
+            btn.textContent = "登録済み";
+        }
+    };
+});
+
+/* ===== 戻るスワイプ（左端→右） ===== */
+let startX = 0;
+let startY = 0;
+
+document.addEventListener("touchstart", e => {
+    const t = e.touches[0];
+    startX = t.clientX;
+    startY = t.clientY;
+});
+
+document.addEventListener("touchend", e => {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - startX;
+    const dy = Math.abs(t.clientY - startY);
+
+    if (startX < 40 && dx > 120 && dy < 80) {
+        history.back();
+    }
+});
+</script>
+
+</body>
+</html>
+{% endblock %}
