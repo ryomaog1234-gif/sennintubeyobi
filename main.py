@@ -230,7 +230,7 @@ def get_data(videoid):
 
 
 # =========================
-# ★ チャンネル（ショートも動画に統合）
+# ★ チャンネル
 # =========================
 
 def get_channel(channelid):
@@ -406,7 +406,7 @@ def watch(request: Request, response: Response, v: str, sennin: Union[str, None]
                 "authorid": t["authorId"],
                 "authoricon": t["authorThumbnails"][-1]["url"],
                 "title": t["title"],
-                "hls_url": t.get("hlsUrl"),
+                "hls_url": f"https://yudlp.vercel.app/stream/{v}",
             }
         )
 
