@@ -47,6 +47,7 @@ apis = [
 apichannels = apis.copy()
 apicomments = apis.copy()
 
+# Vercel対策（書き込みしない）
 if os.path.exists("./senninverify"):
     try:
         os.chmod("./senninverify", 0o755)
@@ -169,21 +170,66 @@ def get_search(q, page):
 
 
 # =========================
-# ★ 高画質はHLS一本化（DASH削除）
+# ★ ここだけ拡張（DASH対応）
 # =========================
 
 def get_data(videoid):
     t = json.loads(apirequest("api/v1/videos/" + urllib.parse.quote(videoid)))
 
+    # 既存（低画質・互換用）
+    videourls = [i["url"] for i in t.get("formatStreams", [])]
+    hls_url = t.get("hlsUrl")
+    nocookie_url = f"https://www.youtube-nocookie.com/embed/{videoid}"
+
+    # --- DASH（本物の高画質） ---
+    adaptive = t.get("adaptiveFormats", [])
+
+    audio = None
+    videos = {}
+
+    for f in adaptive:
+        mime = f.get("type", "")
+        if mime.startswith("audio/"):
+            if not audio or f.get("bitrate", 0) > audio.get("bitrate", 0):
+                audio = f
+        elif mime.startswith("video/"):
+            h = f.get("height")
+            if h:
+                # mp4優先
+                if h not in videos or ("mp4" in mime and "mp4" not in videos[h]["type"]):
+                    videos[h] = f
+
+    dash = None
+    if audio and videos:
+        dash = {
+            "audio": {
+                "url": audio["url"],
+                "mime": audio["type"],
+                "bitrate": audio.get("bitrate")
+            },
+            "videos": {
+                str(h): {
+                    "url": videos[h]["url"],
+                    "mime": videos[h]["type"],
+                    "fps": videos[h].get("fps"),
+                    "bitrate": videos[h].get("bitrate")
+                }
+                for h in sorted(videos.keys(), reverse=True)
+            }
+        }
+
     return (
         [{"id": i["videoId"], "title": i["title"], "author": i["author"], "authorId": i["authorId"]}
          for i in t["recommendedVideos"]],
+        videourls,
         t["descriptionHtml"].replace("\n", "<br>"),
         t["title"],
         t["authorId"],
         t["author"],
         t["authorThumbnails"][-1]["url"],
-        f"/stream/high?v={videoid}",
+        nocookie_url,
+        hls_url,
+        dash,  # ★ 追加（index 9）
     )
 
 
@@ -225,7 +271,7 @@ templates = Jinja2Templates(directory="templates")
 
 
 # =========================
-# 高画質ストリーム（既存そのまま）
+# 高画質ストリーム（既存）
 # =========================
 
 HLS_API_BASE_URL = "https://yudlp.vercel.app/m3u8/"
@@ -304,13 +350,16 @@ def watch(request: Request, response: Response, v: str, sennin: Union[str, None]
         {
             "request": request,
             "videoid": v,
+            "videourls": t[1],
             "res": t[0],
-            "description": t[1],
-            "videotitle": t[2],
-            "authorid": t[3],
-            "author": t[4],
-            "authoricon": t[5],
-            "stream_url": t[6],
+            "description": t[2],
+            "videotitle": t[3],
+            "authorid": t[4],
+            "author": t[5],
+            "authoricon": t[6],
+            "nocookie_url": t[7],
+            "hls_url": t[8],
+            "dash": t[9],  # ★ 追加
         }
     )
 
