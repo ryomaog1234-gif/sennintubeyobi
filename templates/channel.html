@@ -23,14 +23,12 @@ body {
     color: var(--text-main);
 }
 
-/* ===== 全体 ===== */
 .channel-page-container {
     max-width: 1400px;
     margin: 0 auto;
     padding: 24px 16px;
 }
 
-/* ===== バナー ===== */
 .channel-banner {
     height: 220px;
     border-radius: 16px;
@@ -39,7 +37,6 @@ body {
     box-shadow: var(--soft-shadow);
 }
 
-/* ===== ヘッダー ===== */
 .channel-header {
     display: flex;
     align-items: center;
@@ -64,7 +61,22 @@ body {
     color: var(--text-sub);
 }
 
-/* ===== 概要 ===== */
+/* 追加：登録ボタン */
+.subscribe-btn {
+    margin-top: 12px;
+    background: var(--yt-red);
+    color: #fff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-size: 14px;
+    cursor: pointer;
+}
+.subscribe-btn.subscribed {
+    background: #e5e7eb;
+    color: #111;
+}
+
 .channel-description {
     background: var(--card-bg);
     padding: 20px;
@@ -73,13 +85,31 @@ body {
     line-height: 1.7;
 }
 
-/* ===== 見出し ===== */
 .section-title {
     font-size: 24px;
     margin: 40px 0 16px;
 }
 
-/* ===== Shorts ===== */
+/* タブ */
+.channel-tabs {
+    display: flex;
+    gap: 24px;
+    border-bottom: 1px solid var(--soft-border);
+    margin-top: 12px;
+}
+.channel-tabs button {
+    background: none;
+    border: none;
+    padding: 14px 0;
+    font-size: 15px;
+    cursor: pointer;
+}
+.channel-tabs button.active {
+    border-bottom: 2px solid var(--yt-red);
+    font-weight: 600;
+}
+
+/* Shorts */
 .shorts-grid {
     display: flex;
     gap: 16px;
@@ -93,12 +123,6 @@ body {
     border-radius: 14px;
     padding: 10px;
     box-shadow: var(--soft-shadow);
-    transition: transform .25s ease, box-shadow .25s ease;
-}
-
-.short-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 14px 34px rgba(0,0,0,0.12);
 }
 
 .short-card img {
@@ -106,13 +130,11 @@ body {
     aspect-ratio: 9 / 16;
     object-fit: cover;
     border-radius: 8px;
-    background: #e5e7eb;
 }
 
 .short-card h3 {
     font-size: 14px;
     margin: 8px 0 4px;
-    line-height: 1.4;
 }
 
 .short-card p {
@@ -120,7 +142,7 @@ body {
     color: var(--text-sub);
 }
 
-/* ===== 動画 ===== */
+/* 動画 */
 .video-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -132,12 +154,6 @@ body {
     border-radius: 14px;
     padding: 10px;
     box-shadow: var(--soft-shadow);
-    transition: transform .25s ease, box-shadow .25s ease;
-}
-
-.video-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 14px 34px rgba(0,0,0,0.12);
 }
 
 .video-card img {
@@ -145,13 +161,11 @@ body {
     aspect-ratio: 16 / 9;
     object-fit: cover;
     border-radius: 10px;
-    background: #e5e7eb;
 }
 
 .video-card h3 {
     font-size: 15px;
     margin: 8px 0 4px;
-    line-height: 1.4;
 }
 
 .video-meta {
@@ -159,13 +173,11 @@ body {
     color: var(--text-sub);
 }
 
-/* ===== リンク ===== */
-a {
-    text-decoration: none;
-    color: inherit;
-}
+a { text-decoration: none; color: inherit; }
 
-/* ===== モバイル ===== */
+.tab-section { display: none; }
+.tab-section.active { display: block; }
+
 @media (max-width: 768px) {
     .channel-header {
         flex-direction: column;
@@ -179,56 +191,135 @@ a {
 
 <div class="channel-page-container">
 
-    {% if cover_img_url %}
-    <div class="channel-banner" style="background-image:url('{{ cover_img_url }}');"></div>
-    {% endif %}
+{% if cover_img_url %}
+<div class="channel-banner" style="background-image:url('{{ cover_img_url }}');"></div>
+{% endif %}
 
-    <div class="channel-header">
-        <img src="{{ channelicon }}">
-        <div>
-            <h1>{{ channelname }}</h1>
-            {% if subscribers_count %}
-            <p>チャンネル登録者数: {{ subscribers_count }}</p>
-            {% endif %}
-        </div>
+<div class="channel-header">
+    <img src="{{ channelicon }}">
+    <div>
+        <h1>{{ channelname }}</h1>
+        {% if subscribers_count %}
+        <p>チャンネル登録者数: {{ subscribers_count }}</p>
+        {% endif %}
+        <button id="subscribeBtn" class="subscribe-btn">チャンネル登録</button>
     </div>
+</div>
 
-    <div class="channel-description">
-        <h2 style="margin-top:0;">概要</h2>
-        <div style="white-space:pre-wrap;">{{ channelprofile | safe }}</div>
-    </div>
+<div class="channel-tabs">
+    <button class="active" data-tab="home">ホーム</button>
+    <button data-tab="videos">動画</button>
+    <button data-tab="shorts">Shorts</button>
+    <button data-tab="about">概要</button>
+</div>
 
-    {% if shorts %}
-    <h2 class="section-title">Shorts</h2>
-    <div class="shorts-grid">
-        {% for video in shorts %}
-        <div class="short-card">
-            <a href="/watch?v={{ video.videoId }}">
-                <img src="/thumbnail?v={{ video.videoId }}">
-            </a>
-            <h3>{{ video.title }}</h3>
-            <p>{{ video.viewCountText or '' }}</p>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
+<!-- ホーム -->
+<div class="tab-section active" id="tab-home">
 
-    <h2 class="section-title">最新動画</h2>
-    <div class="video-grid">
-        {% for video in results %}
-        <div class="video-card">
-            <a href="/watch?v={{ video.id }}">
-                <img src="/thumbnail?v={{ video.id }}">
-            </a>
-            <h3>{{ video.title }}</h3>
-            <div class="video-meta">
-                {{ video.view_count_text }} ・ {{ video.length_str }}
-            </div>
-        </div>
-        {% endfor %}
+{% if shorts %}
+<h2 class="section-title">Shorts</h2>
+<div class="shorts-grid">
+{% for video in shorts %}
+<div class="short-card">
+    <a href="/watch?v={{ video.videoId }}">
+        <img src="/thumbnail?v={{ video.videoId }}">
+    </a>
+    <h3>{{ video.title }}</h3>
+    <p>{{ video.viewCountText or '' }}</p>
+</div>
+{% endfor %}
+</div>
+{% endif %}
+
+<h2 class="section-title">最新動画</h2>
+<div class="video-grid">
+{% for video in results %}
+<div class="video-card">
+    <a href="/watch?v={{ video.id }}">
+        <img src="/thumbnail?v={{ video.id }}">
+    </a>
+    <h3>{{ video.title }}</h3>
+    <div class="video-meta">
+        {{ video.view_count_text }} ・ {{ video.length_str }}
     </div>
+</div>
+{% endfor %}
+</div>
 
 </div>
+
+<!-- 動画 -->
+<div class="tab-section" id="tab-videos">
+<div class="video-grid">
+{% for video in results %}
+<div class="video-card">
+    <a href="/watch?v={{ video.id }}">
+        <img src="/thumbnail?v={{ video.id }}">
+    </a>
+    <h3>{{ video.title }}</h3>
+    <div class="video-meta">
+        {{ video.view_count_text }} ・ {{ video.length_str }}
+    </div>
+</div>
+{% endfor %}
+</div>
+</div>
+
+<!-- Shorts -->
+<div class="tab-section" id="tab-shorts">
+<div class="shorts-grid">
+{% for video in shorts %}
+<div class="short-card">
+    <a href="/watch?v={{ video.videoId }}">
+        <img src="/thumbnail?v={{ video.videoId }}">
+    </a>
+    <h3>{{ video.title }}</h3>
+</div>
+{% endfor %}
+</div>
+</div>
+
+<!-- 概要 -->
+<div class="tab-section" id="tab-about">
+<div class="channel-description">
+    <div style="white-space:pre-wrap;">{{ channelprofile | safe }}</div>
+</div>
+</div>
+
+</div>
+
+<script>
+/* タブ */
+document.querySelectorAll(".channel-tabs button").forEach(btn => {
+    btn.onclick = () => {
+        document.querySelectorAll(".channel-tabs button").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".tab-section").forEach(s => s.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+    };
+});
+
+/* 登録 */
+const btn = document.getElementById("subscribeBtn");
+const key = "subscribed_{{ channelname }}";
+
+if (localStorage.getItem(key)) {
+    btn.classList.add("subscribed");
+    btn.textContent = "登録済み";
+}
+
+btn.onclick = () => {
+    if (btn.classList.contains("subscribed")) {
+        localStorage.removeItem(key);
+        btn.classList.remove("subscribed");
+        btn.textContent = "チャンネル登録";
+    } else {
+        localStorage.setItem(key, "1");
+        btn.classList.add("subscribed");
+        btn.textContent = "登録済み";
+    }
+};
+</script>
 
 </body>
 </html>
