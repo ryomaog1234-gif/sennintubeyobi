@@ -230,17 +230,43 @@ def get_data(videoid):
     )
 
 
+# =========================
+# ★ チャンネル（最小変更）
+# =========================
+
 def get_channel(channelid):
     t = json.loads(apichannelrequest("api/v1/channels/" + urllib.parse.quote(channelid)))
-    if not t["latestVideos"]:
-        raise APItimeoutError()
+
+    videos = []
+    shorts = []
+
+    for i in t.get("latestVideos", []):
+        if i.get("isShort"):
+            shorts.append({
+                "videoId": i["videoId"],
+                "title": i["title"],
+                "viewCountText": i.get("viewCountText", "")
+            })
+        else:
+            videos.append({
+                "title": i["title"],
+                "id": i["videoId"],
+                "view_count_text": i.get("viewCountText", ""),
+                "length_str": i.get("lengthText", "")
+            })
+
     return (
-        [{"title": i["title"], "id": i["videoId"], "published": i["publishedText"], "type": "video"}
-         for i in t["latestVideos"]],
+        videos,
+        shorts,
         {
             "channelname": t["author"],
             "channelicon": t["authorThumbnails"][-1]["url"],
-            "channelprofile": t["descriptionHtml"]
+            "channelprofile": t["descriptionHtml"],
+            "subscribers_count": t.get("subCountText"),
+            "cover_img_url": (
+                t["authorBanners"][-1]["url"]
+                if t.get("authorBanners") else None
+            )
         }
     )
 
@@ -375,15 +401,20 @@ def channel(request: Request, response: Response, cid: str, sennin: Union[str, N
     if not check_cookie(sennin):
         return RedirectResponse("/")
     response.set_cookie("sennin", "True", max_age=7 * 24 * 60 * 60)
-    t = get_channel(cid)
+
+    videos, shorts, info = get_channel(cid)
+
     return templates.TemplateResponse(
         "channel.html",
         {
             "request": request,
-            "results": t[0],
-            "channelname": t[1]["channelname"],
-            "channelicon": t[1]["channelicon"],
-            "channelprofile": t[1]["channelprofile"],
+            "results": videos,
+            "shorts": shorts,
+            "channelname": info["channelname"],
+            "channelicon": info["channelicon"],
+            "channelprofile": info["channelprofile"],
+            "subscribers_count": info["subscribers_count"],
+            "cover_img_url": info["cover_img_url"],
         }
     )
 
