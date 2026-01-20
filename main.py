@@ -47,7 +47,6 @@ apis = [
 apichannels = apis.copy()
 apicomments = apis.copy()
 
-# Vercel対策（書き込みしない）
 if os.path.exists("./senninverify"):
     try:
         os.chmod("./senninverify", 0o755)
@@ -104,7 +103,6 @@ def api_request_core(api_list, url):
         for future in concurrent.futures.as_completed(futures, timeout=max_time):
             if time.time() - start >= max_time - 1:
                 break
-
             result = future.result()
             if result:
                 api, text = result
@@ -170,7 +168,7 @@ def get_search(q, page):
 
 
 # =========================
-# ★ DASH対応（そのまま）
+# ★ DASH対応
 # =========================
 
 def get_data(videoid):
@@ -231,7 +229,7 @@ def get_data(videoid):
 
 
 # =========================
-# ★ チャンネル（最小変更）
+# ★ チャンネル（Shorts対応）
 # =========================
 
 def get_channel(channelid):
@@ -241,7 +239,13 @@ def get_channel(channelid):
     shorts = []
 
     for i in t.get("latestVideos", []):
-        if i.get("isShort"):
+        is_short = (
+            i.get("isShort") is True
+            or i.get("lengthSeconds") == 0
+            or i.get("lengthText") in ("0:00", "", None)
+        )
+
+        if is_short:
             shorts.append({
                 "videoId": i["videoId"],
                 "title": i["title"],
@@ -261,7 +265,7 @@ def get_channel(channelid):
         {
             "channelname": t["author"],
             "channelicon": t["authorThumbnails"][-1]["url"],
-            "channelprofile": t["descriptionHtml"],
+            "channelprofile": t.get("description", ""),
             "subscribers_count": t.get("subCountText"),
             "cover_img_url": (
                 t["authorBanners"][-1]["url"]
@@ -269,6 +273,30 @@ def get_channel(channelid):
             )
         }
     )
+
+
+@cache(seconds=30)
+def get_home():
+    data = json.loads(apirequest("api/v1/popular?hl=jp"))
+
+    videos = []
+    shorts = []
+    channels = []
+
+    for i in data:
+        if i.get("type") == "video":
+            if (
+                i.get("isShort") is True
+                or i.get("lengthSeconds") == 0
+                or i.get("lengthText") in ("0:00", "", None)
+            ):
+                shorts.append(i)
+            else:
+                videos.append(i)
+        elif i.get("type") == "channel":
+            channels.append(i)
+
+    return videos, shorts, channels
 
 
 def get_comments(videoid):
@@ -294,7 +322,7 @@ templates = Jinja2Templates(directory="templates")
 
 
 # =========================
-# 高画質ストリーム（1080p固定）
+# 高画質ストリーム
 # =========================
 
 HLS_API_BASE_URL = "https://yudlp.vercel.app/m3u8/"
@@ -307,15 +335,9 @@ def stream_high(v: str):
         if r.status_code == 200:
             data = r.json()
             m3u8s = [f for f in data.get("m3u8_formats", []) if f.get("url")]
-
-            m3u8_1080 = [
-                f for f in m3u8s
-                if (f.get("resolution") or "").endswith("x1080")
-            ]
-
+            m3u8_1080 = [f for f in m3u8s if (f.get("resolution") or "").endswith("x1080")]
             if m3u8_1080:
                 return RedirectResponse(m3u8_1080[0]["url"])
-
             if m3u8s:
                 best = sorted(
                     m3u8s,
@@ -326,19 +348,9 @@ def stream_high(v: str):
     except:
         pass
 
-    try:
-        t = json.loads(apirequest("api/v1/videos/" + urllib.parse.quote(v)))
-        if t.get("hlsUrl"):
-            return RedirectResponse(t["hlsUrl"])
-    except:
-        pass
-
-    try:
-        for f in t.get("formatStreams", []):
-            if f.get("url"):
-                return RedirectResponse(f["url"])
-    except:
-        pass
+    t = json.loads(apirequest("api/v1/videos/" + urllib.parse.quote(v)))
+    if t.get("hlsUrl"):
+        return RedirectResponse(t["hlsUrl"])
 
     raise HTTPException(status_code=503, detail="High quality stream unavailable")
 
@@ -349,10 +361,22 @@ def stream_high(v: str):
 
 @app.get("/", response_class=HTMLResponse)
 def home(request: Request, response: Response, sennin: Union[str, None] = Cookie(None)):
-    if check_cookie(sennin):
-        response.set_cookie("sennin", "True", max_age=7 * 24 * 60 * 60)
-        return templates.TemplateResponse("home.html", {"request": request})
-    return RedirectResponse("/word")
+    if not check_cookie(sennin):
+        return RedirectResponse("/word")
+
+    response.set_cookie("sennin", "True", max_age=7 * 24 * 60 * 60)
+
+    videos, shorts, channels = get_home()
+
+    return templates.TemplateResponse(
+        "home.html",
+        {
+            "request": request,
+            "videos": videos,
+            "shorts": shorts,
+            "channels": channels,
+        }
+    )
 
 
 @app.get("/search", response_class=HTMLResponse)
