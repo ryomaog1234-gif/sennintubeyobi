@@ -2,7 +2,6 @@
 <html lang="ja">
 <head>
     <title>{{ videotitle }} - 仙人tube</title>
-
     <link rel="stylesheet" href="/css/pure-min.css">
     <link rel="stylesheet" href="/css/grids-responsive-min.css">
     <link rel="stylesheet" href="/css/default.css">
@@ -14,136 +13,135 @@
     <!-- ▼ dash.js（高画質用） -->
     <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
 
-    <style>
-        body {
-            margin: 0;
-            background: #f9fafb;
-            font-family: "Segoe UI","Hiragino Kaku Gothic ProN",sans-serif;
-            color: #0f172a;
-        }
+<style>
+    body {
+        margin: 0;
+        background: #f9fafb;
+        font-family: "Segoe UI","Hiragino Kaku Gothic ProN",sans-serif;
+        color: #0f172a;
+    }
 
-        a { text-decoration: none; color: inherit; }
+    a { text-decoration: none; color: inherit; }
 
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
+    .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 20px;
+    }
 
-        .main-grid {
-            display: grid;
-            grid-template-columns: 1fr 360px;
-            gap: 24px;
-        }
+    .main-grid {
+        display: grid;
+        grid-template-columns: 1fr 360px;
+        gap: 24px;
+    }
 
-        @media (max-width: 900px) {
-            .main-grid { grid-template-columns: 1fr; }
-        }
+    @media (max-width: 900px) {
+        .main-grid { grid-template-columns: 1fr; }
+    }
 
-        .player-wrapper video {
-            width: 100%;
-            background: black;
-            border-radius: 14px;
-        }
+    .player-wrapper video {
+        width: 100%;
+        background: black;
+        border-radius: 14px;
+    }
 
-        .video-title {
-            font-size: 20px;
-            font-weight: 600;
-            margin: 12px 0;
-        }
+    .video-title {
+        font-size: 20px;
+        font-weight: 600;
+        margin: 12px 0;
+    }
 
-        .channel-row {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin: 12px 0;
-        }
+    .channel-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin: 12px 0;
+    }
 
-        .channel-row img {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-        }
+    .channel-row img {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+    }
 
-        .actions {
-            display: flex;
-            gap: 10px;
-            margin: 12px 0;
-            flex-wrap: wrap;
-        }
+    .actions {
+        display: flex;
+        gap: 10px;
+        margin: 12px 0;
+        flex-wrap: wrap;
+    }
 
-        .action-btn {
-            padding: 8px 14px;
-            border-radius: 999px;
-            border: 1px solid #d1d5db;
-            background: white;
-            cursor: pointer;
-        }
+    .action-btn {
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: 1px solid #d1d5db;
+        background: white;
+        cursor: pointer;
+    }
 
-        .action-btn.primary {
-            background: #2563eb;
-            color: white;
-            border: none;
-        }
+    .action-btn.primary {
+        background: #2563eb;
+        color: white;
+        border: none;
+    }
 
-        .description {
-            background: #f1f5f9;
-            border-radius: 12px;
-            padding: 14px;
-            font-size: 14px;
-            line-height: 1.6;
-        }
+    .description {
+        background: #f1f5f9;
+        border-radius: 12px;
+        padding: 14px;
+        font-size: 14px;
+        line-height: 1.6;
+    }
 
-        .option-box {
-            margin-top: 12px;
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
+    .option-box {
+        margin-top: 12px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+    }
 
-        .option-box select,
-        .option-box button {
-            padding: 6px 12px;
-            border-radius: 999px;
-            border: 1px solid #d1d5db;
-            background: white;
-            cursor: pointer;
-        }
+    .option-box select,
+    .option-box button {
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: 1px solid #d1d5db;
+        background: white;
+        cursor: pointer;
+    }
 
-        .related {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
+    .related {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
 
-        .related-item {
-            display: flex;
-            gap: 10px;
-        }
+    .related-item {
+        display: flex;
+        gap: 10px;
+    }
 
-        .related-thumb {
-            width: 160px;
-            aspect-ratio: 16 / 9;
-            border-radius: 10px;
-            overflow: hidden;
-        }
+    .related-thumb {
+        width: 160px;
+        aspect-ratio: 16 / 9;
+        border-radius: 10px;
+        overflow: hidden;
+    }
 
-        .related-thumb img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-    </style>
+    .related-thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+</style>
 </head>
 
 <body>
-
 {% include "base.html" %}
 
 <div class="container">
 <div class="main-grid">
-
 <div>
+
 <div class="player-wrapper">
     <video id="videoPlayer" controls
         poster="https://img.youtube.com/vi/{{ videoid }}/0.jpg">
@@ -164,15 +162,14 @@
 </div>
 
 <div class="description">
+{{ description | safe }}
 
-    {{ description | safe }}
-
-    <div class="option-box">
-        <select id="qualitySelect">
-            <option value="0">高画質</option>
-            <option value="1">低画質</option>
-        </select>
-    </div>
+<div class="option-box">
+    <select id="qualitySelect">
+        <option value="0">高画質</option>
+        <option value="1">低画質</option>
+    </select>
+</div>
 </div>
 
 <div class="option-box">
@@ -185,6 +182,7 @@
         style="width:100%;border:none;min-height:600px">
     </iframe>
 </div>
+
 </div>
 
 <div class="related">
@@ -218,22 +216,17 @@ video.src = urls[1] || urls[0];
 document.getElementById("qualitySelect").addEventListener("change", e => {
     const index = e.target.value;
 
-    /* ▼ 高画質 → DASH */
     if(index === "0" && dash){
         if(dashPlayer){
             dashPlayer.reset();
         }
 
         dashPlayer = dashjs.MediaPlayer().create();
-
         const highest = Object.keys(dash.videos).sort((a,b)=>b-a)[0];
-
         dashPlayer.initialize(video, dash.videos[highest].url, true);
         dashPlayer.attachSource(dash.videos[highest].url);
-
         dashPlayer.setAutoPlay(true);
     }
-    /* ▼ 低画質 → 通常MP4 */
     else{
         if(dashPlayer){
             dashPlayer.reset();
@@ -244,6 +237,7 @@ document.getElementById("qualitySelect").addEventListener("change", e => {
     }
 });
 
+/* ▼ nocookie公式対応（ここだけ変更） */
 function setMode(mode){
     if(dashPlayer){
         dashPlayer.reset();
@@ -251,7 +245,11 @@ function setMode(mode){
     }
 
     if(mode === "nocookie"){
-        video.src = urls[1] || urls[0];
+        window.open(
+            "https://www.youtube-nocookie.com/embed/{{ videoid }}?autoplay=1",
+            "_blank"
+        );
+        return;
     }else{
         video.src = urls[0];
     }
