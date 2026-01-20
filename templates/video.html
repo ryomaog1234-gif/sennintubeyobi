@@ -11,8 +11,8 @@
     <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
 
-    <!-- ▼ dash.js（高画質用） -->
-    <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
+    <!-- ▼ hls.js（高画質用） -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
     <style>
         body {
@@ -148,12 +148,12 @@
 <div>
 <div class="player-wrapper">
 
-    <!-- ▼ 通常プレイヤー -->
+    <!-- ▼ 通常 / HLS プレイヤー -->
     <video id="videoPlayer" controls
         poster="https://img.youtube.com/vi/{{ videoid }}/0.jpg">
     </video>
 
-    <!-- ▼ nocookie公式プレイヤー（初期は非表示） -->
+    <!-- ▼ nocookie公式プレイヤー -->
     <iframe
         id="nocookieFrame"
         style="display:none"
@@ -220,36 +220,41 @@
 
 <script>
 const urls = {{ videourls | tojson }};
-const dash = {{ dash | tojson }};
+const streamUrl = "{{ stream_url }}";
 const video = document.getElementById("videoPlayer");
 const nocookieFrame = document.getElementById("nocookieFrame");
 
-let dashPlayer = null;
+let hls = null;
 
-/* 初期再生（低画質MP4） */
+/* 初期再生（低画質 MP4） */
 video.src = urls[1] || urls[0];
 
-/* 画質変更 */
+/* 画質切替 */
 document.getElementById("qualitySelect").addEventListener("change", e => {
     const index = e.target.value;
 
     nocookieFrame.style.display = "none";
     video.style.display = "block";
 
-    if(index === "0" && dash){
-        if(dashPlayer){
-            dashPlayer.reset();
-        }
+    if(hls){
+        hls.destroy();
+        hls = null;
+    }
 
-        dashPlayer = dashjs.MediaPlayer().create();
-        const highest = Object.keys(dash.videos).sort((a,b)=>b-a)[0];
-        dashPlayer.initialize(video, dash.videos[highest].url, true);
-        dashPlayer.setAutoPlay(true);
-    } else {
-        if(dashPlayer){
-            dashPlayer.reset();
-            dashPlayer = null;
+    /* ▼ 高画質 → HLS */
+    if(index === "0"){
+        if(Hls.isSupported()){
+            hls = new Hls();
+            hls.loadSource(streamUrl);
+            hls.attachMedia(video);
+            video.play();
+        } else if(video.canPlayType("application/vnd.apple.mpegurl")){
+            video.src = streamUrl;
+            video.play();
         }
+    }
+    /* ▼ 低画質 → MP4 */
+    else{
         video.src = urls[1] || urls[0];
         video.play();
     }
@@ -258,9 +263,9 @@ document.getElementById("qualitySelect").addEventListener("change", e => {
 /* 再生モード切替 */
 function setMode(mode){
 
-    if(dashPlayer){
-        dashPlayer.reset();
-        dashPlayer = null;
+    if(hls){
+        hls.destroy();
+        hls = null;
     }
 
     if(mode === "nocookie"){
