@@ -47,7 +47,6 @@ apis = [
 apichannels = apis.copy()
 apicomments = apis.copy()
 
-# Vercel対策（書き込みしない）
 if os.path.exists("./senninverify"):
     try:
         os.chmod("./senninverify", 0o755)
@@ -80,6 +79,16 @@ def is_json(text: str) -> bool:
 
 def check_cookie(cookie: Union[str, None]) -> bool:
     return cookie == "True"
+
+
+def try_json(url: str):
+    try:
+        r = requests.get(url, timeout=6)
+        if r.status_code == 200:
+            return r.json()
+    except:
+        pass
+    return None
 
 
 # =========================
@@ -170,18 +179,16 @@ def get_search(q, page):
 
 
 # =========================
-# ★ ここだけ拡張（DASH対応）
+# ★ DASH対応（そのまま）
 # =========================
 
 def get_data(videoid):
     t = json.loads(apirequest("api/v1/videos/" + urllib.parse.quote(videoid)))
 
-    # 既存（低画質・互換用）
     videourls = [i["url"] for i in t.get("formatStreams", [])]
     hls_url = t.get("hlsUrl")
     nocookie_url = f"https://www.youtube-nocookie.com/embed/{videoid}"
 
-    # --- DASH（本物の高画質） ---
     adaptive = t.get("adaptiveFormats", [])
 
     audio = None
@@ -195,7 +202,6 @@ def get_data(videoid):
         elif mime.startswith("video/"):
             h = f.get("height")
             if h:
-                # mp4優先
                 if h not in videos or ("mp4" in mime and "mp4" not in videos[h]["type"]):
                     videos[h] = f
 
@@ -229,32 +235,8 @@ def get_data(videoid):
         t["authorThumbnails"][-1]["url"],
         nocookie_url,
         hls_url,
-        dash,  # ★ 追加（index 9）
+        dash,
     )
-
-
-def get_channel(channelid):
-    t = json.loads(apichannelrequest("api/v1/channels/" + urllib.parse.quote(channelid)))
-    if not t["latestVideos"]:
-        raise APItimeoutError()
-    return (
-        [{"title": i["title"], "id": i["videoId"], "published": i["publishedText"], "type": "video"}
-         for i in t["latestVideos"]],
-        {
-            "channelname": t["author"],
-            "channelicon": t["authorThumbnails"][-1]["url"],
-            "channelprofile": t["descriptionHtml"]
-        }
-    )
-
-
-def get_comments(videoid):
-    t = json.loads(apicommentsrequest("api/v1/comments/" + urllib.parse.quote(videoid) + "?hl=jp"))
-    return [{
-        "author": i["author"],
-        "authoricon": i["authorThumbnails"][-1]["url"],
-        "body": i["contentHtml"].replace("\n", "<br>")
-    } for i in t["comments"]]
 
 
 # =========================
@@ -271,7 +253,7 @@ templates = Jinja2Templates(directory="templates")
 
 
 # =========================
-# 高画質ストリーム（既存）
+# 高画質ストリーム（1080p固定）
 # =========================
 
 HLS_API_BASE_URL = "https://yudlp.vercel.app/m3u8/"
@@ -279,20 +261,28 @@ HLS_API_BASE_URL = "https://yudlp.vercel.app/m3u8/"
 
 @app.get("/stream/high")
 def stream_high(v: str):
-    try:
-        r = requests.get(f"{HLS_API_BASE_URL}{v}", timeout=6)
-        if r.status_code == 200:
-            data = r.json()
-            m3u8s = [f for f in data.get("m3u8_formats", []) if f.get("url")]
-            if m3u8s:
-                best = sorted(
-                    m3u8s,
-                    key=lambda f: int((f.get("resolution") or "0x0").split("x")[-1]),
-                    reverse=True
-                )[0]
-                return RedirectResponse(best["url"])
-    except:
-        pass
+
+    data = try_json(f"{HLS_API_BASE_URL}{v}")
+    if data:
+        m3u8s = [f for f in data.get("m3u8_formats", []) if f.get("url")]
+
+        # ★ 1080p固定
+        m3u8_1080 = [
+            f for f in m3u8s
+            if (f.get("resolution") or "").endswith("x1080")
+        ]
+
+        if m3u8_1080:
+            return RedirectResponse(m3u8_1080[0]["url"])
+
+        # フォールバック（既存動作）
+        if m3u8s:
+            best = sorted(
+                m3u8s,
+                key=lambda f: int((f.get("resolution") or "0x0").split("x")[-1]),
+                reverse=True
+            )[0]
+            return RedirectResponse(best["url"])
 
     try:
         t = json.loads(apirequest("api/v1/videos/" + urllib.parse.quote(v)))
@@ -309,106 +299,3 @@ def stream_high(v: str):
         pass
 
     raise HTTPException(status_code=503, detail="High quality stream unavailable")
-
-
-# =========================
-# ルーティング
-# =========================
-
-@app.get("/", response_class=HTMLResponse)
-def home(request: Request, response: Response, sennin: Union[str, None] = Cookie(None)):
-    if check_cookie(sennin):
-        response.set_cookie("sennin", "True", max_age=7 * 24 * 60 * 60)
-        return templates.TemplateResponse("home.html", {"request": request})
-    return RedirectResponse("/word")
-
-
-@app.get("/search", response_class=HTMLResponse)
-def search(request: Request, response: Response, q: str, page: int = 1, sennin: Union[str, None] = Cookie(None)):
-    if not check_cookie(sennin):
-        return RedirectResponse("/")
-    response.set_cookie("sennin", "True", max_age=7 * 24 * 60 * 60)
-    return templates.TemplateResponse(
-        "search.html",
-        {
-            "request": request,
-            "results": get_search(q, page),
-            "word": q,
-            "next": f"/search?q={q}&page={page+1}",
-        }
-    )
-
-
-@app.get("/watch", response_class=HTMLResponse)
-def watch(request: Request, response: Response, v: str, sennin: Union[str, None] = Cookie(None)):
-    if not check_cookie(sennin):
-        return RedirectResponse("/")
-    response.set_cookie("sennin", "True", max_age=7 * 24 * 60 * 60)
-    t = get_data(v)
-    return templates.TemplateResponse(
-        "video.html",
-        {
-            "request": request,
-            "videoid": v,
-            "videourls": t[1],
-            "res": t[0],
-            "description": t[2],
-            "videotitle": t[3],
-            "authorid": t[4],
-            "author": t[5],
-            "authoricon": t[6],
-            "nocookie_url": t[7],
-            "hls_url": t[8],
-            "dash": t[9],  # ★ 追加
-        }
-    )
-
-
-@app.get("/channel/{cid}", response_class=HTMLResponse)
-def channel(request: Request, response: Response, cid: str, sennin: Union[str, None] = Cookie(None)):
-    if not check_cookie(sennin):
-        return RedirectResponse("/")
-    response.set_cookie("sennin", "True", max_age=7 * 24 * 60 * 60)
-    t = get_channel(cid)
-    return templates.TemplateResponse(
-        "channel.html",
-        {
-            "request": request,
-            "results": t[0],
-            "channelname": t[1]["channelname"],
-            "channelicon": t[1]["channelicon"],
-            "channelprofile": t[1]["channelprofile"],
-        }
-    )
-
-
-@app.get("/comments", response_class=HTMLResponse)
-def comments(request: Request, v: str):
-    return templates.TemplateResponse(
-        "comments.html",
-        {"request": request, "comments": get_comments(v)}
-    )
-
-
-@app.get("/thumbnail")
-def thumbnail(v: str):
-    return RawResponse(
-        content=requests.get(f"https://img.youtube.com/vi/{v}/0.jpg").content,
-        media_type="image/jpeg"
-    )
-
-
-# =========================
-# 例外
-# =========================
-
-@app.exception_handler(APItimeoutError)
-def api_wait(request: Request, _):
-    return templates.TemplateResponse("APIwait.html", {"request": request}, status_code=500)
-
-
-@app.exception_handler(StarletteHTTPException)
-def http_exception_handler(_, exc):
-    if exc.status_code == 404:
-        return RedirectResponse("/")
-    raise exc
