@@ -40,8 +40,10 @@
             .main-grid { grid-template-columns: 1fr; }
         }
 
-        .player-wrapper video {
+        .player-wrapper video,
+        .player-wrapper iframe {
             width: 100%;
+            aspect-ratio: 16 / 9;
             background: black;
             border-radius: 14px;
         }
@@ -145,9 +147,21 @@
 
 <div>
 <div class="player-wrapper">
+
+    <!-- ▼ 通常プレイヤー -->
     <video id="videoPlayer" controls
         poster="https://img.youtube.com/vi/{{ videoid }}/0.jpg">
     </video>
+
+    <!-- ▼ nocookie公式プレイヤー（初期は非表示） -->
+    <iframe
+        id="nocookieFrame"
+        style="display:none"
+        src=""
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen>
+    </iframe>
+
 </div>
 
 <div class="video-title">{{ videotitle }}</div>
@@ -208,6 +222,7 @@
 const urls = {{ videourls | tojson }};
 const dash = {{ dash | tojson }};
 const video = document.getElementById("videoPlayer");
+const nocookieFrame = document.getElementById("nocookieFrame");
 
 let dashPlayer = null;
 
@@ -218,23 +233,19 @@ video.src = urls[1] || urls[0];
 document.getElementById("qualitySelect").addEventListener("change", e => {
     const index = e.target.value;
 
-    /* ▼ 高画質 → DASH */
+    nocookieFrame.style.display = "none";
+    video.style.display = "block";
+
     if(index === "0" && dash){
         if(dashPlayer){
             dashPlayer.reset();
         }
 
         dashPlayer = dashjs.MediaPlayer().create();
-
         const highest = Object.keys(dash.videos).sort((a,b)=>b-a)[0];
-
         dashPlayer.initialize(video, dash.videos[highest].url, true);
-        dashPlayer.attachSource(dash.videos[highest].url);
-
         dashPlayer.setAutoPlay(true);
-    }
-    /* ▼ 低画質 → 通常MP4 */
-    else{
+    } else {
         if(dashPlayer){
             dashPlayer.reset();
             dashPlayer = null;
@@ -244,18 +255,31 @@ document.getElementById("qualitySelect").addEventListener("change", e => {
     }
 });
 
+/* 再生モード切替 */
 function setMode(mode){
+
     if(dashPlayer){
         dashPlayer.reset();
         dashPlayer = null;
     }
 
     if(mode === "nocookie"){
-        video.src = urls[1] || urls[0];
-    }else{
-        video.src = urls[0];
+        video.pause();
+        video.style.display = "none";
+
+        nocookieFrame.src =
+            "https://www.youtube-nocookie.com/embed/{{ videoid }}?autoplay=1&rel=0";
+
+        nocookieFrame.style.display = "block";
     }
-    video.play();
+    else{
+        nocookieFrame.style.display = "none";
+        nocookieFrame.src = "";
+
+        video.style.display = "block";
+        video.src = urls[0];
+        video.play();
+    }
 }
 </script>
 
