@@ -11,8 +11,8 @@
     <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
     <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
 
-    <!-- ▼ hls.js（高画質用） -->
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <!-- ▼ dash.js（高画質用） -->
+    <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
 
     <style>
         body {
@@ -40,10 +40,8 @@
             .main-grid { grid-template-columns: 1fr; }
         }
 
-        .player-wrapper video,
-        .player-wrapper iframe {
+        .player-wrapper video {
             width: 100%;
-            aspect-ratio: 16 / 9;
             background: black;
             border-radius: 14px;
         }
@@ -147,21 +145,9 @@
 
 <div>
 <div class="player-wrapper">
-
-    <!-- ▼ 通常 / HLS プレイヤー -->
     <video id="videoPlayer" controls
         poster="https://img.youtube.com/vi/{{ videoid }}/0.jpg">
     </video>
-
-    <!-- ▼ nocookie公式プレイヤー -->
-    <iframe
-        id="nocookieFrame"
-        style="display:none"
-        src=""
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowfullscreen>
-    </iframe>
-
 </div>
 
 <div class="video-title">{{ videotitle }}</div>
@@ -220,71 +206,56 @@
 
 <script>
 const urls = {{ videourls | tojson }};
-const streamUrl = "{{ stream_url }}";
+const dash = {{ dash | tojson }};
 const video = document.getElementById("videoPlayer");
-const nocookieFrame = document.getElementById("nocookieFrame");
 
-let hls = null;
+let dashPlayer = null;
 
-/* 初期再生（低画質 MP4） */
+/* 初期再生（低画質MP4） */
 video.src = urls[1] || urls[0];
 
-/* 画質切替 */
+/* 画質変更 */
 document.getElementById("qualitySelect").addEventListener("change", e => {
     const index = e.target.value;
 
-    nocookieFrame.style.display = "none";
-    video.style.display = "block";
-
-    if(hls){
-        hls.destroy();
-        hls = null;
-    }
-
-    /* ▼ 高画質 → HLS */
-    if(index === "0"){
-        if(Hls.isSupported()){
-            hls = new Hls();
-            hls.loadSource(streamUrl);
-            hls.attachMedia(video);
-            video.play();
-        } else if(video.canPlayType("application/vnd.apple.mpegurl")){
-            video.src = streamUrl;
-            video.play();
+    /* ▼ 高画質 → DASH */
+    if(index === "0" && dash){
+        if(dashPlayer){
+            dashPlayer.reset();
         }
+
+        dashPlayer = dashjs.MediaPlayer().create();
+
+        const highest = Object.keys(dash.videos).sort((a,b)=>b-a)[0];
+
+        dashPlayer.initialize(video, dash.videos[highest].url, true);
+        dashPlayer.attachSource(dash.videos[highest].url);
+
+        dashPlayer.setAutoPlay(true);
     }
-    /* ▼ 低画質 → MP4 */
+    /* ▼ 低画質 → 通常MP4 */
     else{
+        if(dashPlayer){
+            dashPlayer.reset();
+            dashPlayer = null;
+        }
         video.src = urls[1] || urls[0];
         video.play();
     }
 });
 
-/* 再生モード切替 */
 function setMode(mode){
-
-    if(hls){
-        hls.destroy();
-        hls = null;
+    if(dashPlayer){
+        dashPlayer.reset();
+        dashPlayer = null;
     }
 
     if(mode === "nocookie"){
-        video.pause();
-        video.style.display = "none";
-
-        nocookieFrame.src =
-            "https://www.youtube-nocookie.com/embed/{{ videoid }}?autoplay=1&rel=0";
-
-        nocookieFrame.style.display = "block";
-    }
-    else{
-        nocookieFrame.style.display = "none";
-        nocookieFrame.src = "";
-
-        video.style.display = "block";
+        video.src = urls[1] || urls[0];
+    }else{
         video.src = urls[0];
-        video.play();
     }
+    video.play();
 }
 </script>
 
