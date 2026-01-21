@@ -158,7 +158,7 @@
             }
         }
 
-        /* ===== モーダル共通 ===== */
+        /* ===== モーダル共通（アニメーション対応） ===== */
         .modal {
             position: fixed;
             inset: 0;
@@ -167,10 +167,17 @@
             justify-content: center;
             align-items: center;
             z-index: 2000;
+            opacity: 0;
+            transition: opacity .25s ease;
         }
 
         .modal.show {
             display: flex;
+            opacity: 1;
+        }
+
+        .modal.closing {
+            opacity: 0;
         }
 
         .modal-inner {
@@ -183,6 +190,19 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            transform: translateY(30px) scale(.96);
+            opacity: 0;
+            transition: all .25s ease;
+        }
+
+        .modal.show .modal-inner {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+        }
+
+        .modal.closing .modal-inner {
+            transform: translateY(30px) scale(.96);
+            opacity: 0;
         }
 
         .modal-header {
@@ -222,13 +242,10 @@
 
 <div id="toast">検索ワードを入力してください</div>
 
-<!-- 右上ボタン -->
 <div class="top-links">
     <a class="top-link" href="/subuscript">登録済みのチャンネル</a>
-
     <button class="top-link" id="feedbackBtn">バグ・要望</button>
     <button class="top-link" id="noticeBtn">お知らせ</button>
-
     <a class="top-link" href="https://tools-hd3i.onrender.com">tools</a>
     <a class="top-link" href="https://proxywiki.onrender.com">proxywiki</a>
 </div>
@@ -241,22 +258,12 @@
     <div class="pure-u-1 pure-u-md-12-24 searchbar">
         <form class="pure-form" action="/search" method="get">
             <fieldset>
-                <input
-                    type="search"
-                    id="searchbox"
-                    name="q"
-                    autocomplete="on"
-                    autocorrect="on"
-                    autocapitalize="none"
-                    spellcheck="false"
-                    autofocus
-                    placeholder="動画・チャンネルを検索">
+                <input type="search" id="searchbox" name="q" placeholder="動画・チャンネルを検索">
             </fieldset>
         </form>
     </div>
 </div>
 
-<!-- バグ・要望 モーダル -->
 <div class="modal" id="feedbackModal">
     <div class="modal-inner">
         <div class="modal-header">
@@ -267,7 +274,6 @@
     </div>
 </div>
 
-<!-- お知らせ モーダル -->
 <div class="modal" id="noticeModal">
     <div class="modal-inner">
         <div class="modal-header">
@@ -283,42 +289,32 @@
 </div>
 
 <script>
-    $('#searchbox').autocomplete({
-        source: function (request, response) {
-            fetch("/suggest?keyword=" + request.term)
-                .then(res => res.json())
-                .then(data => response(data));
-        },
-        delay: 300
-    });
+    function openModal(modal) {
+        modal.classList.remove("closing");
+        modal.style.display = "flex";
+        requestAnimationFrame(() => modal.classList.add("show"));
+    }
 
-    document.querySelector("form").addEventListener("submit", function (e) {
-        const box = document.getElementById("searchbox");
-        if (!box.value.trim()) {
-            e.preventDefault();
-            showToast("検索ワードを入力してください");
-            box.focus();
-        }
-    });
-
-    function showToast(text) {
-        const toast = document.getElementById("toast");
-        toast.textContent = text;
-        toast.classList.add("show");
-        setTimeout(() => toast.classList.remove("show"), 2500);
+    function closeModal(modal) {
+        modal.classList.add("closing");
+        modal.classList.remove("show");
+        setTimeout(() => {
+            modal.style.display = "none";
+            modal.classList.remove("closing");
+        }, 250);
     }
 
     const feedbackModal = document.getElementById("feedbackModal");
     const noticeModal = document.getElementById("noticeModal");
 
-    document.getElementById("feedbackBtn").onclick = () => feedbackModal.classList.add("show");
-    document.getElementById("noticeBtn").onclick = () => noticeModal.classList.add("show");
+    document.getElementById("feedbackBtn").onclick = () => openModal(feedbackModal);
+    document.getElementById("noticeBtn").onclick = () => openModal(noticeModal);
 
-    document.getElementById("closeFeedback").onclick = () => feedbackModal.classList.remove("show");
-    document.getElementById("closeNotice").onclick = () => noticeModal.classList.remove("show");
+    document.getElementById("closeFeedback").onclick = () => closeModal(feedbackModal);
+    document.getElementById("closeNotice").onclick = () => closeModal(noticeModal);
 
-    feedbackModal.onclick = e => { if (e.target === feedbackModal) feedbackModal.classList.remove("show"); }
-    noticeModal.onclick = e => { if (e.target === noticeModal) noticeModal.classList.remove("show"); }
+    feedbackModal.onclick = e => { if (e.target === feedbackModal) closeModal(feedbackModal); }
+    noticeModal.onclick = e => { if (e.target === noticeModal) closeModal(noticeModal); }
 </script>
 
 </body>
