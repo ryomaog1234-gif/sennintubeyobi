@@ -171,7 +171,6 @@
 </div>
 </div>
 
-<!-- ▼ ここに追加（nocookieの隣） -->
 <div class="option-box">
     <button onclick="setMode('nocookie')">nocookie再生</button>
     <button onclick="setMode('stream')">stream再生</button>
@@ -211,6 +210,7 @@ const urls = {{ videourls | tojson }};
 const dash = {{ dash | tojson }};
 const video = document.getElementById("videoPlayer");
 const backendSelect = document.getElementById("backendSelect");
+const qualitySelect = document.getElementById("qualitySelect");
 
 let dashPlayer = null;
 
@@ -227,12 +227,34 @@ function getStreamBase(){
 /* 初期再生（低画質MP4） */
 video.src = urls[1] || urls[0];
 
+/* backend変更時 → 即反映 */
+backendSelect.addEventListener("change", () => {
+    qualitySelect.value = "0"; // 強制 高画質
+    if (dashPlayer) {
+        dashPlayer.reset();
+        dashPlayer = null;
+    }
+    video.src = getStreamBase() + "?video_id={{ videoid }}";
+    video.play();
+});
+
 /* 画質変更 */
-document.getElementById("qualitySelect").addEventListener("change", e => {
+qualitySelect.addEventListener("change", e => {
     const index = e.target.value;
 
     /* ===== 高画質 ===== */
     if (index === "0") {
+
+        /* yobi 選択時 → 必ず m3u8（1080p以上は backend 側で保証） */
+        if (backendSelect.value === "yobi") {
+            if (dashPlayer) {
+                dashPlayer.reset();
+                dashPlayer = null;
+            }
+            video.src = "/api/streamurl/yobi?video_id={{ videoid }}";
+            video.play();
+            return;
+        }
 
         /* iOS → 必ず m3u8 */
         if (isIOS) {
@@ -240,7 +262,7 @@ document.getElementById("qualitySelect").addEventListener("change", e => {
                 dashPlayer.reset();
                 dashPlayer = null;
             }
-            video.src = getStreamBase() + "?video_id={{ videoid }}";
+            video.src = "/api/streamurl?video_id={{ videoid }}";
             video.play();
             return;
         }
@@ -264,7 +286,7 @@ document.getElementById("qualitySelect").addEventListener("change", e => {
         }
 
         /* 非iOS → m3u8 */
-        video.src = getStreamBase() + "?video_id={{ videoid }}";
+        video.src = "/api/streamurl?video_id={{ videoid }}";
         video.play();
         return;
     }
@@ -305,4 +327,4 @@ function setMode(mode){
 </script>
 
 </body>
-</html>
+    </html>
