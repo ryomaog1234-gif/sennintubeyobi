@@ -178,6 +178,7 @@
     <select id="backendSelect">
         <option value="main">main</option>
         <option value="yobi">yobi</option>
+        <option value="yobiyobi">yobiyobi</option>
     </select>
 </div>
 
@@ -219,9 +220,9 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
 /* backend取得 */
 function getStreamBase(){
-    return backendSelect.value === "yobi"
-        ? "/api/streamurl/yobi"
-        : "/api/streamurl";
+    if (backendSelect.value === "yobi") return "/api/streamurl/yobi";
+    if (backendSelect.value === "yobiyobi") return "/api/streamurl/yobiyobi";
+    return "/api/streamurl";
 }
 
 /* 初期再生（低画質MP4） */
@@ -245,13 +246,13 @@ qualitySelect.addEventListener("change", e => {
     /* ===== 高画質 ===== */
     if (index === "0") {
 
-        /* yobi 選択時 → 必ず m3u8（1080p以上は backend 側で保証） */
-        if (backendSelect.value === "yobi") {
+        /* yobi / yobiyobi 選択時 → 必ず m3u8 */
+        if (backendSelect.value === "yobi" || backendSelect.value === "yobiyobi") {
             if (dashPlayer) {
                 dashPlayer.reset();
                 dashPlayer = null;
             }
-            video.src = "/api/streamurl/yobi?video_id={{ videoid }}";
+            video.src = getStreamBase() + "?video_id={{ videoid }}";
             video.play();
             return;
         }
@@ -327,4 +328,4 @@ function setMode(mode){
 </script>
 
 </body>
-    </html>
+</html>
