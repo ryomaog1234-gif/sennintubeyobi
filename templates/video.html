@@ -12,6 +12,9 @@
     <!-- ▼ dash.js（高画質用） -->
     <script src="https://cdn.dashjs.org/latest/dash.all.min.js"></script>
 
+    <!-- ▼ hls.js（yobi / yobiyobi 用） -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
 <style>
     body {
         margin: 0;
@@ -225,84 +228,37 @@ function getStreamBase(){
     return "/api/streamurl";
 }
 
-/* 初期再生（低画質MP4） */
+/* 初期再生 */
 video.src = urls[1] || urls[0];
 
-/* backend変更時 → 即反映 */
-backendSelect.addEventListener("change", () => {
-    qualitySelect.value = "0"; // 強制 高画質
-    if (dashPlayer) {
-        dashPlayer.reset();
-        dashPlayer = null;
-    }
-    video.src = getStreamBase() + "?video_id={{ videoid }}";
-    video.play();
-});
-
-/* 画質変更 */
-qualitySelect.addEventListener("change", e => {
-    const index = e.target.value;
-
-    /* ===== 高画質 ===== */
-    if (index === "0") {
-
-        /* yobi / yobiyobi 選択時 → 必ず m3u8 */
-        if (backendSelect.value === "yobi" || backendSelect.value === "yobiyobi") {
-            if (dashPlayer) {
-                dashPlayer.reset();
-                dashPlayer = null;
-            }
-            video.src = getStreamBase() + "?video_id={{ videoid }}";
-            video.play();
-            return;
-        }
-
-        /* iOS → 必ず m3u8 */
-        if (isIOS) {
-            if (dashPlayer) {
-                dashPlayer.reset();
-                dashPlayer = null;
-            }
-            video.src = "/api/streamurl?video_id={{ videoid }}";
-            video.play();
-            return;
-        }
-
-        /* 非iOS → DASH */
-        if (dash && dash.videos && dash.audio) {
-            if (dashPlayer) {
-                dashPlayer.reset();
-            }
-
-            dashPlayer = dashjs.MediaPlayer().create();
-
-            const highest = Object.keys(dash.videos)
-                .map(h => parseInt(h))
-                .sort((a, b) => b - a)[0];
-
-            dashPlayer.initialize(video, dash.videos[highest].url, true);
-            dashPlayer.attachSource(dash.videos[highest].url);
-            dashPlayer.setAutoPlay(true);
-            return;
-        }
-
-        /* 非iOS → m3u8 */
-        video.src = "/api/streamurl?video_id={{ videoid }}";
+/* yobi / yobiyobi 再生 */
+let hlsPlayer = null;
+function playYobiHLS(url){
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = url;
         video.play();
         return;
     }
 
-    /* ===== 低画質 ===== */
-    if (dashPlayer) {
-        dashPlayer.reset();
-        dashPlayer = null;
+    if (hlsPlayer) {
+        hlsPlayer.destroy();
+        hlsPlayer = null;
     }
 
-    video.src = urls[1] || urls[0];
-    video.play();
-});
+    if (Hls.isSupported()) {
+        hlsPlayer = new Hls();
+        hlsPlayer.loadSource(url);
+        hlsPlayer.attachMedia(video);
+        hlsPlayer.on(Hls.Events.MANIFEST_PARSED, () => {
+            video.play();
+        });
+    } else {
+        video.src = url;
+        video.play();
+    }
+}
 
-/* nocookie / stream */
+/* nocookie / stream（追加された指定コード） */
 function setMode(mode){
     if(dashPlayer){
         dashPlayer.reset();
