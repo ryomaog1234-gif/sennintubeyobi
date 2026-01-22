@@ -258,7 +258,7 @@ function playYobiHLS(url){
     }
 }
 
-/* nocookie / stream（追加された指定コード） */
+/* nocookie / stream */
 function setMode(mode){
     if(dashPlayer){
         dashPlayer.reset();
@@ -281,6 +281,27 @@ function setMode(mode){
         video.play();
     }
 }
+
+/* ===== 追加：取得方法変更を即反映 ===== */
+backendSelect.addEventListener("change", () => {
+    if (qualitySelect.value === "0" &&
+        (backendSelect.value === "yobi" || backendSelect.value === "yobiyobi")) {
+        playYobiHLS(getStreamBase() + "?video_id={{ videoid }}");
+    } else {
+        video.src = qualitySelect.value === "1" ? urls[0] : (urls[1] || urls[0]);
+        video.play();
+    }
+});
+
+qualitySelect.addEventListener("change", () => {
+    if (qualitySelect.value === "0" &&
+        (backendSelect.value === "yobi" || backendSelect.value === "yobiyobi")) {
+        playYobiHLS(getStreamBase() + "?video_id={{ videoid }}");
+    } else {
+        video.src = qualitySelect.value === "1" ? urls[0] : (urls[1] || urls[0]);
+        video.play();
+    }
+});
 </script>
 
 </body>
