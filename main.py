@@ -453,6 +453,17 @@ def thumbnail(v: str):
         media_type="image/jpeg"
     )
 
+@app.get("/watchlist", response_class=HTMLResponse)
+def watchlist(request: Request, list: str):
+    results = fetch_playlist_all(list)  # 全件取得
+    return templates.TemplateResponse(
+        "watchlist.html",
+        {
+            "request": request,
+            "results": results
+        }
+    )
+
 # =========================
 # 例外
 # =========================
