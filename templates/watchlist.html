@@ -1,41 +1,45 @@
 {% extends "base.html" %}
 
 {% block title %}
-プレイリスト - 仙人tube
+ウォッチリスト - 仙人tube
 {% endblock %}
 
 {% block content %}
 
 <style>
-/* ===== 検索結果ページと同一UI ===== */
 :root {
     --bg-main: #f9fafb;
     --card-bg: #ffffff;
-    --border-soft: #e5e7eb;
-    --shadow-soft: 0 8px 24px rgba(0,0,0,0.06);
+    --shadow-soft: 0 6px 20px rgba(0,0,0,0.08);
 }
 
 body {
     background: var(--bg-main);
 }
 
+.watchlist-container {
+    max-width: 1200px;
+    margin: 24px auto;
+    padding: 0 24px;
+}
+
 .results-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 28px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 24px;
 }
 
 .video-card {
     background: var(--card-bg);
-    border-radius: 16px;
+    border-radius: 14px;
     overflow: hidden;
     box-shadow: var(--shadow-soft);
-    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    transition: transform .2s ease, box-shadow .2s ease;
 }
 
 .video-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 14px 36px rgba(0,0,0,0.12);
+    transform: translateY(-3px);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.12);
 }
 
 .video-card img {
@@ -46,13 +50,13 @@ body {
 }
 
 .video-meta {
-    padding: 14px 16px 18px;
+    padding: 12px 14px 16px;
 }
 
 .video-meta h3 {
-    font-size: 15px;
-    line-height: 1.4;
+    font-size: 14px;
     margin: 0 0 6px;
+    line-height: 1.4;
 }
 
 .video-meta h3 a {
@@ -60,13 +64,9 @@ body {
     text-decoration: none;
 }
 
-.video-meta h3 a:hover {
-    color: var(--yt-red);
-}
-
 .video-meta p {
     margin: 2px 0;
-    font-size: 13px;
+    font-size: 12px;
     color: #6b7280;
 }
 
@@ -77,20 +77,15 @@ body {
 }
 </style>
 
-<div class="search-results-container"
-     style="max-width:1200px;margin:24px auto;padding:0 24px;">
+<div class="watchlist-container">
 
-    <!-- ===== プレイリスト情報 ===== -->
-    <div style="margin-bottom:24px;">
-        <h2 style="font-size:20px;margin-bottom:4px;">
-            プレイリスト
-        </h2>
-        <p style="color:#6b7280;font-size:14px;">
-            全 {{ videos|length }} 件の動画
-        </p>
-    </div>
+    <h2 style="font-size:20px;margin-bottom:6px;">
+        ウォッチリスト
+    </h2>
+    <p style="color:#6b7280;font-size:14px;margin-bottom:24px;">
+        全 {{ videos|length }} 件
+    </p>
 
-    <!-- ===== 動画一覧（省略なし） ===== -->
     <div class="results-list">
         {% for v in videos %}
         <div class="video-card">
