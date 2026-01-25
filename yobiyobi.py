@@ -1,137 +1,105 @@
-# yobiyobi.py
 import random
-import time
 import requests
-from fastapi import APIRouter, HTTPException
+import urllib.parse
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.responses import RedirectResponse, JSONResponse
 
-# =========================
-# 基本設定
-# =========================
-
-router = APIRouter()
-
-TIMEOUT = (3, 6)
+app = FastAPI()
 
 INVIDIOUS_INSTANCES = [
-    "https://inv.nadeko.net/",
-    "https://invidious.f5.si/",
-    "https://invidious.lunivers.trade/",
-    "https://invidious.ducks.party/",
-    "https://super8.absturztau.be/",
-    "https://invidious.nikkosphere.com/",
-    "https://yt.omada.cafe/",
-    "https://iv.melmac.space/",
-    "https://iv.duti.dev/",
+    'https://inv.nadeko.net/',
+    'https://invidious.f5.si/',
+    'https://invidious.lunivers.trade/',
+    'https://invidious.ducks.party/',
+    'https://super8.absturztau.be/',
+    'https://invidious.nikkosphere.com/',
+    'https://yt.omada.cafe/',
+    'https://iv.melmac.space/',
+    'https://iv.duti.dev/',
 ]
 
-HEADERS_LIST = [
-    {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Accept": "*/*",
-    },
-    {
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64)",
-        "Accept": "*/*",
-    },
-    {
-        "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)",
-        "Accept": "*/*",
-    },
-]
-
-session = requests.Session()
+STREAM_API = "https://ytdl-0et1.onrender.com/stream/"
+M3U8_API = "https://ytdl-0et1.onrender.com/m3u8/"
 
 
-def get_random_headers():
-    return random.choice(HEADERS_LIST)
-
+# =========================
+# utils
+# =========================
 
 def pick_instance():
-    inst = random.choice(INVIDIOUS_INSTANCES)
-    if not inst.endswith("/"):
-        inst += "/"
-    return inst
+    return random.choice(INVIDIOUS_INSTANCES).rstrip("/")
+
+
+def get_invidious_video(video_id: str):
+    inst = pick_instance()
+    url = f"{inst}/api/v1/videos/{video_id}"
+    r = requests.get(url, timeout=8)
+    r.raise_for_status()
+    return r.json()
+
+
+def extract_best_video(formats):
+    """
+    progressive (audio+video) 優先
+    """
+    videos = [
+        f for f in formats
+        if f.get("type", "").startswith("video/")
+        and f.get("audioQuality")
+    ]
+    videos.sort(key=lambda x: x.get("qualityLabel", ""), reverse=True)
+    return videos[0]["url"] if videos else None
 
 
 # =========================
-# Invidious m3u8 取得
+# main endpoint
 # =========================
 
-def fetch_m3u8_from_invidious(video_id: str):
+@app.get("/api/streamurl/yobiyobi")
+def yobiyobi_stream(video_id: str = Query(...)):
     """
-    yobiyobi は Invidious API 直叩きのみ
-    MP4 は一切扱わない
+    フロントからは <video src=ここ> で使う
     """
-    instance = pick_instance()
-    api_url = f"{instance}api/v1/videos/{video_id}"
-
+    # ① Invidious 直URL
     try:
-        res = session.get(api_url, headers=get_random_headers(), timeout=TIMEOUT)
-        if res.status_code != 200:
-            return None
-
-        data = res.json()
-        adaptive = data.get("adaptiveFormats", [])
-
-        m3u8_list = []
-        for fmt in adaptive:
-            if fmt.get("type", "").startswith("video") and "url" in fmt:
-                if "m3u8" in fmt.get("url"):
-                    m3u8_list.append(fmt)
-
-        if not m3u8_list:
-            return None
-
-        # 解像度最大を選択
-        def height(fmt):
-            try:
-                return int(fmt.get("height") or 0)
-            except:
-                return 0
-
-        best = max(m3u8_list, key=height)
-        return best.get("url")
-
+        data = get_invidious_video(video_id)
+        fmt = extract_best_video(data.get("formatStreams", []))
+        if fmt:
+            return RedirectResponse(fmt)
     except Exception:
-        return None
+        pass
+
+    # ② ytdl stream API
+    try:
+        stream_url = urllib.parse.urljoin(STREAM_API, video_id)
+        r = requests.head(stream_url, timeout=5)
+        if r.status_code == 200:
+            return RedirectResponse(stream_url)
+    except Exception:
+        pass
+
+    # ③ m3u8 最終フォールバック
+    try:
+        m3u8_url = urllib.parse.urljoin(M3U8_API, video_id)
+        return RedirectResponse(m3u8_url)
+    except Exception:
+        pass
+
+    raise HTTPException(status_code=404, detail="yobiyobi: stream unavailable")
 
 
 # =========================
-# API エンドポイント
+# debug / health
 # =========================
 
-@router.get("/api/streamurl/yobiyobi")
-def stream_yobiyobi(video_id: str):
-    """
-    yobi が死んだ時に呼ばれる最終HLS手段
-    """
-    # 少し遅延させて yobi と同時死を避ける
-    time.sleep(0.3)
-
-    for _ in range(3):
-        m3u8 = fetch_m3u8_from_invidious(video_id)
-        if m3u8:
-            return RedirectResponse(m3u8)
-
-    raise HTTPException(status_code=503, detail="yobiyobi HLS unavailable")
-
-
-# =========================
-# デバッグ用（任意）
-# =========================
-
-@router.get("/api/streamurl/yobiyobi/json")
-def stream_yobiyobi_json(video_id: str):
-    m3u8 = fetch_m3u8_from_invidious(video_id)
-    if not m3u8:
-        return JSONResponse(
-            status_code=503,
-            content={"status": "error", "message": "no m3u8"},
-        )
-
-    return {
+@app.get("/api/streamurl/yobiyobi/health")
+def health():
+    return JSONResponse({
         "status": "ok",
-        "backend": "yobiyobi",
-        "m3u8": m3u8,
-   }
+        "mode": "yobiyobi",
+        "strategy": [
+            "invidious_direct",
+            "ytdl_stream",
+            "m3u8_fallback"
+        ]
+    })
