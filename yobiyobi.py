@@ -19,7 +19,7 @@ INVIDIOUS_INSTANCES = [
 ]
 
 STREAM_API = "https://ytdl-0et1.onrender.com/stream/"
-M3U8_API = "https://ytdl-0et1.onrender.com/m3u8/"
+M3U8_API   = "https://ytdl-0et1.onrender.com/m3u8/"
 
 
 # =========================
@@ -38,14 +38,16 @@ def get_invidious_video(video_id: str):
     return r.json()
 
 
-def extract_best_video(formats):
+def extract_best_progressive(data: dict):
     """
-    progressive (audio+video) 優先
+    audio+video 統合（HTML <video> 用）
     """
+    formats = data.get("formatStreams", [])
     videos = [
         f for f in formats
         if f.get("type", "").startswith("video/")
         and f.get("audioQuality")
+        and f.get("url")
     ]
     videos.sort(key=lambda x: x.get("qualityLabel", ""), reverse=True)
     return videos[0]["url"] if videos else None
@@ -58,23 +60,23 @@ def extract_best_video(formats):
 @app.get("/api/streamurl/yobiyobi")
 def yobiyobi_stream(video_id: str = Query(...)):
     """
-    フロントからは <video src=ここ> で使う
+    HTML <video src=...> 専用
     """
-    # ① Invidious 直URL
+
+    # ① Invidious progressive
     try:
         data = get_invidious_video(video_id)
-        fmt = extract_best_video(data.get("formatStreams", []))
-        if fmt:
-            return RedirectResponse(fmt)
+        url = extract_best_progressive(data)
+        if url:
+            return RedirectResponse(url)
     except Exception:
         pass
 
-    # ② ytdl stream API
+    # ② ytdl stream API（mux済み想定）
     try:
         stream_url = urllib.parse.urljoin(STREAM_API, video_id)
-        r = requests.head(stream_url, timeout=5)
-        if r.status_code == 200:
-            return RedirectResponse(stream_url)
+        # HEAD は信用せず即 Redirect
+        return RedirectResponse(stream_url)
     except Exception:
         pass
 
@@ -98,8 +100,8 @@ def health():
         "status": "ok",
         "mode": "yobiyobi",
         "strategy": [
-            "invidious_direct",
-            "ytdl_stream",
+            "invidious_progressive",
+            "ytdl_stream_muxed",
             "m3u8_fallback"
         ]
     })
