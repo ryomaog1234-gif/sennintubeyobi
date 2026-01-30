@@ -1,171 +1,224 @@
-import random
+# yobiyobi.py
+from flask import Blueprint, request, jsonify, redirect
 import requests
-import urllib.parse
+import random
 
-from fastapi import FastAPI, Query, HTTPException
-from fastapi.responses import RedirectResponse, JSONResponse
+yobiyobi = Blueprint("yobiyobi", __name__)
 
-app = FastAPI()
+# =========================================================
+# 設定
+# =========================================================
+
+STREAM_API = "https://example.com/api/stream/"   # mp4 系 API
+M3U8_API   = "https://example.com/api/m3u8/"     # hls 系 API
 
 INVIDIOUS_INSTANCES = [
-    'https://inv.nadeko.net/',
-    'https://invidious.f5.si/',
-    'https://invidious.lunivers.trade/',
-    'https://invidious.ducks.party/',
-    'https://super8.absturztau.be/',
-    'https://invidious.nikkosphere.com/',
-    'https://yt.omada.cafe/',
-    'https://iv.melmac.space/',
-    'https://iv.duti.dev/',
+    'https://inv.nadeko.net',
+    'https://invidious.f5.si',
+    'https://invidious.lunivers.trade',
+    'https://invidious.ducks.party',
+    'https://super8.absturztau.be',
+    'https://invidious.nikkosphere.com',
+    'https://yt.omada.cafe',
+    'https://iv.melmac.space',
+    'https://iv.duti.dev'
 ]
 
-STREAM_API = "https://ytdl-0et1.onrender.com/stream/"
-M3U8_API   = "https://ytdl-0et1.onrender.com/m3u8/"
+TIMEOUT = (3, 6)
 
+# =========================================================
+# HTTP セッション
+# =========================================================
 
-# =========================
-# utils
-# =========================
+http_session = requests.Session()
 
-def pick_instance():
-    return random.choice(INVIDIOUS_INSTANCES).rstrip("/")
+# =========================================================
+# ヘッダ生成
+# =========================================================
 
+def get_random_headers():
+    ua = random.choice([
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        "Mozilla/5.0 (X11; Linux x86_64)"
+    ])
+    return {
+        "User-Agent": ua,
+        "Accept": "*/*",
+        "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+        "Referer": "https://www.youtube.com/"
+    }
 
-def get_invidious_video(video_id: str):
-    inst = pick_instance()
-    url = f"{inst}/api/v1/videos/{video_id}"
-    r = requests.get(url, timeout=8)
-    r.raise_for_status()
-    return r.json()
+# =========================================================
+# Invidious フォールバック解決
+# =========================================================
 
+def resolve_invidious(video_id):
+    """
+    Invidious の latest_version API から
+    直接再生可能な mp4 URL を取得
+    """
+    for base in INVIDIOUS_INSTANCES:
+        try:
+            res = http_session.get(
+                f"{base}/latest_version",
+                params={
+                    "id": video_id,
+                    "itag": "18",     # 360p mp4
+                    "local": "true"
+                },
+                headers=get_random_headers(),
+                timeout=TIMEOUT,
+                allow_redirects=True
+            )
 
-def extract_best_progressive(data: dict):
-    formats = data.get("formatStreams", [])
-    videos = [
-        f for f in formats
-        if f.get("type", "").startswith("video/")
-        and f.get("audioQuality")
-        and f.get("url")
-    ]
-    videos.sort(key=lambda x: x.get("qualityLabel", ""), reverse=True)
-    return videos[0]["url"] if videos else None
+            if res.status_code == 200 and res.url:
+                return res.url
+        except:
+            continue
 
+    return None
 
-def extract_1080p_progressive(data: dict):
-    formats = data.get("formatStreams", [])
-    videos = [
-        f for f in formats
-        if f.get("type", "").startswith("video/")
-        and f.get("audioQuality")
-        and f.get("url")
-    ]
+# =========================================================
+# メイン取得ロジック
+# =========================================================
 
-    for v in videos:
-        if v.get("qualityLabel") == "1080p":
-            return v["url"]
+def resolve_stream(video_id):
+    """
+    return:
+        {
+            "primary": mp4 低画質,
+            "fallback": mp4 高画質,
+            "m3u8": hls url,
+            "invidious": invidious mp4
+        }
+    """
+    urls = {
+        "primary": None,
+        "fallback": None,
+        "m3u8": None,
+        "invidious": None
+    }
 
-    videos.sort(key=lambda x: x.get("qualityLabel", ""), reverse=True)
-    return videos[0]["url"] if videos else None
-
-
-# =========================
-# yobi（m3u8 → 1080p fallback）
-# =========================
-
-@app.get("/api/streamurl/yobi")
-def yobi_stream(video_id: str = Query(...)):
-    m3u8_url = urllib.parse.urljoin(M3U8_API, video_id)
-
+    # ---------------- MP4 ----------------
     try:
-        r = requests.head(
-            m3u8_url,
-            allow_redirects=True,
-            timeout=6
+        res = http_session.get(
+            f"{STREAM_API}{video_id}",
+            headers=get_random_headers(),
+            timeout=TIMEOUT
         )
-        ct = r.headers.get("Content-Type", "").lower()
+        if res.status_code == 200:
+            data = res.json()
+            formats = data.get("formats", [])
 
-        if "mpegurl" in ct or ".m3u8" in r.url:
-            return RedirectResponse(r.url)
-    except Exception:
+            # itag 18 = 360p mp4
+            for fmt in formats:
+                if str(fmt.get("itag")) == "18" and fmt.get("url"):
+                    urls["primary"] = fmt["url"]
+                    break
+
+            # fallback = video codec がある最初のもの
+            if not urls["primary"]:
+                for fmt in formats:
+                    if fmt.get("url") and fmt.get("vcodec") != "none":
+                        urls["fallback"] = fmt["url"]
+                        break
+    except:
         pass
 
+    # ---------------- HLS ----------------
     try:
-        data = get_invidious_video(video_id)
-        url = extract_1080p_progressive(data)
-        if url:
-            return RedirectResponse(url)
-    except Exception:
-        pass
-
-    try:
-        return RedirectResponse(f"{STREAM_API}{video_id}")
-    except Exception:
-        pass
-
-    raise HTTPException(status_code=404)
-
-
-# =========================
-# yobiyobi（progressive 専用）
-# =========================
-
-@app.get("/api/streamurl/yobiyobi")
-def yobiyobi_stream(video_id: str = Query(...)):
-    try:
-        data = get_invidious_video(video_id)
-        url = extract_best_progressive(data)
-        if url:
-            return RedirectResponse(url)
-    except Exception:
-        pass
-
-    try:
-        return RedirectResponse(f"{STREAM_API}{video_id}")
-    except Exception:
-        pass
-
-    raise HTTPException(status_code=404)
-
-
-# =========================
-# Content-Type / HEAD 判定
-# =========================
-
-@app.get("/api/streammeta")
-def stream_meta(
-    video_id: str = Query(...),
-    backend: str = Query("main")
-):
-    if backend == "yobi":
-        url = f"/api/streamurl/yobi?video_id={video_id}"
-    elif backend == "yobiyobi":
-        url = f"/api/streamurl/yobiyobi?video_id={video_id}"
-    else:
-        url = f"/api/streamurl?video_id={video_id}"
-
-    try:
-        r = requests.head(
-            url,
-            allow_redirects=True,
-            timeout=6
+        res = http_session.get(
+            f"{M3U8_API}{video_id}",
+            headers=get_random_headers(),
+            timeout=TIMEOUT
         )
-        ct = r.headers.get("Content-Type", "").lower()
+        if res.status_code == 200:
+            data = res.json()
+            m3u8_formats = data.get("m3u8_formats", [])
 
-        if "mpegurl" in ct:
-            stream_type = "m3u8"
-        elif "video/" in ct:
-            stream_type = "mp4"
-        else:
-            stream_type = "m3u8" if ".m3u8" in r.url else "mp4"
+            if m3u8_formats:
+                best = max(
+                    m3u8_formats,
+                    key=lambda x: int(
+                        (x.get("resolution", "0x0").split("x")[-1]) or 0
+                    )
+                )
+                urls["m3u8"] = best.get("url")
+    except:
+        pass
 
-        return JSONResponse({
-            "url": r.url,
-            "type": stream_type,
-            "backend": backend
+    # ---------------- Invidious ----------------
+    if not urls["m3u8"] and not urls["fallback"] and not urls["primary"]:
+        urls["invidious"] = resolve_invidious(video_id)
+
+    return urls
+
+# =========================================================
+# /api/streamurl/yobiyobi
+# <video src="..."> 用
+# =========================================================
+
+@yobiyobi.route("/api/streamurl/yobiyobi")
+def api_streamurl_yobiyobi():
+    video_id = request.args.get("video_id")
+    if not video_id:
+        return "", 400
+
+    urls = resolve_stream(video_id)
+
+    # 優先順位: HLS → mp4 fallback → mp4 primary → Invidious
+    if urls["m3u8"]:
+        return redirect(urls["m3u8"], 302)
+
+    if urls["fallback"]:
+        return redirect(urls["fallback"], 302)
+
+    if urls["primary"]:
+        return redirect(urls["primary"], 302)
+
+    if urls["invidious"]:
+        return redirect(urls["invidious"], 302)
+
+    return "", 404
+
+# =========================================================
+# /api/streammeta
+# JS failover 用
+# =========================================================
+
+@yobiyobi.route("/api/streammeta")
+def api_streammeta():
+    video_id = request.args.get("video_id")
+    backend = request.args.get("backend")
+
+    if backend != "yobiyobi" or not video_id:
+        return jsonify({}), 400
+
+    urls = resolve_stream(video_id)
+
+    if urls["m3u8"]:
+        return jsonify({
+            "type": "m3u8",
+            "url": urls["m3u8"]
         })
 
-    except Exception:
-        return JSONResponse(
-            {"error": "streammeta_failed"},
-            status_code=500
-        )
+    if urls["fallback"]:
+        return jsonify({
+            "type": "mp4",
+            "url": urls["fallback"]
+        })
+
+    if urls["primary"]:
+        return jsonify({
+            "type": "mp4",
+            "url": urls["primary"]
+        })
+
+    if urls["invidious"]:
+        return jsonify({
+            "type": "mp4",
+            "url": urls["invidious"]
+        })
+
+    return jsonify({}), 404
