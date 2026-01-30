@@ -470,10 +470,8 @@ def http_exception_handler(_, exc):
     if exc.status_code == 404:
         return RedirectResponse("/")
     raise exc
-
-
 # ============================================================
-# ★★★ ここから下が「追加部分」：X (Nitter系) 統合 ★★★
+# ★★★ X (Nitter系) 統合 ★★★
 # ============================================================
 
 from bs4 import BeautifulSoup
@@ -509,13 +507,19 @@ def parse_x_tweets(html: str, base: str):
         for img in item.select("a.still-image img"):
             src = img.get("src")
             if src:
-                images.append(src if src.startswith("http") else base + src)
+                if src.startswith("http"):
+                    images.append(src)
+                else:
+                    images.append(base + src)
 
         videos = []
         for v in item.select("video source"):
             src = v.get("src")
             if src:
-                videos.append(src if src.startswith("http") else base + src)
+                if src.startswith("http"):
+                    videos.append(src)
+                else:
+                    videos.append(base + src)
 
         tweets.append({
             "text": text,
@@ -542,6 +546,7 @@ def x_search_page(request: Request, q: str):
         {
             "request": request,
             "query": q,
-            "tweets": data["tweets"]
+            "tweets": data["tweets"],
         }
     )
+
