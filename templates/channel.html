@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <title>{{ channelname }} - 仙人tube</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <style>
 :root {
     --bg-main: #f9fafb;
@@ -191,9 +190,7 @@ a {
 </head>
 
 <body>
-
 <div class="channel-page-container">
-
 {% if cover_img_url %}
 <div class="channel-banner" style="background-image:url('{{ cover_img_url }}');"></div>
 {% endif %}
@@ -202,24 +199,23 @@ a {
     <img src="{{ channelicon }}">
     <div>
         <h1>{{ channelname }}</h1>
-
-        <p>
-            {% if subscribers_count %}{{ subscribers_count }}{% endif %}
-        </p>
+        <p>{% if subscribers_count %}{{ subscribers_count }}{% endif %}</p>
 
         <p style="white-space:pre-wrap;">
             {{ channelprofile | safe }}
         </p>
 
-        <!-- ボタン群 -->
         <div style="display:flex; gap:12px; margin-top:12px;">
             <button id="subscribeBtn" class="subscribe-btn">
                 チャンネル登録
             </button>
 
-            <button id="twitterBtn" class="subscribe-btn twitter-btn">
-                Twitter
-            </button>
+            <a
+                class="subscribe-btn twitter-btn"
+                href="/x/search?q={{ channelname | urlencode }}"
+            >
+                X
+            </a>
         </div>
     </div>
 </div>
@@ -231,7 +227,6 @@ a {
 </div>
 
 <div class="tab-section active" id="tab-home">
-
 {% if shorts and shorts|length > 0 %}
 <h2 class="section-title">Shorts</h2>
 <div class="shorts-grid">
@@ -261,7 +256,6 @@ a {
 </div>
 {% endfor %}
 </div>
-
 </div>
 
 <div class="tab-section" id="tab-videos">
@@ -294,11 +288,9 @@ a {
 </div>
 {% endif %}
 </div>
-
 </div>
 
 <script>
-// タブ切り替え
 document.querySelectorAll(".channel-tabs button").forEach(btn => {
     btn.onclick = () => {
         document.querySelectorAll(".channel-tabs button").forEach(b => b.classList.remove("active"));
@@ -308,7 +300,6 @@ document.querySelectorAll(".channel-tabs button").forEach(btn => {
     };
 });
 
-// チャンネル登録（ローカル）
 const subscribeBtn = document.getElementById("subscribeBtn");
 const subKey = "subscribed_{{ channelname }}";
 
@@ -328,24 +319,6 @@ subscribeBtn.onclick = () => {
         subscribeBtn.textContent = "登録済み";
     }
 };
-
-// Twitterボタン → Xビューアを別ウィンドウで開く
-const twitterBtn = document.getElementById("twitterBtn");
-
-twitterBtn.onclick = () => {
-    const channelName = "{{ channelname }}";
-
-    const url =
-        "http://localhost:3000/search?q=" +
-        encodeURIComponent(channelName);
-
-    window.open(
-        url,
-        "twitterWindow",
-        "width=500,height=800,resizable=yes,scrollbars=yes"
-    );
-};
 </script>
-
 </body>
 </html>
