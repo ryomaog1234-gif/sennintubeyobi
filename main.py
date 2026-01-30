@@ -306,24 +306,22 @@ M3U8_API   = "https://ytdl-0et1.onrender.com/m3u8/"
 
 @app.get("/stream/high")
 def stream_high(v: str):
-    # ① m3u8（manifest.googlevideo 相当）を最優先
     try:
         return RedirectResponse(f"{M3U8_API}{v}")
     except:
         pass
 
-    # ② stream（直 video/googlevideo）
     try:
         return RedirectResponse(f"{STREAM_API}{v}")
     except:
         pass
 
-    # ③ Invidious の hlsUrl（これも中身は manifest.googlevideo）
     t = json.loads(apirequest("api/v1/videos/" + urllib.parse.quote(v)))
     if t.get("hlsUrl"):
         return RedirectResponse(t["hlsUrl"])
 
     raise HTTPException(status_code=503, detail="High quality stream unavailable")
+
 # =========================
 # ルーティング
 # =========================
@@ -472,3 +470,78 @@ def http_exception_handler(_, exc):
     if exc.status_code == 404:
         return RedirectResponse("/")
     raise exc
+
+
+# ============================================================
+# ★★★ ここから下が「追加部分」：X (Nitter系) 統合 ★★★
+# ============================================================
+
+from bs4 import BeautifulSoup
+
+X_INSTANCES = [
+    "https://nitter.net",
+    "https://xcancel.com",
+    "https://nuku.trabun.org",
+]
+
+def x_fetch(path: str):
+    for base in X_INSTANCES:
+        try:
+            r = session.get(base + path, timeout=3)
+            if r.status_code == 200:
+                return r.text, base
+        except:
+            pass
+    raise APItimeoutError("X fetch failed")
+
+def parse_x_tweets(html: str, base: str):
+    soup = BeautifulSoup(html, "lxml")
+    tweets = []
+
+    for item in soup.select(".timeline-item"):
+        content = item.select_one(".tweet-content")
+        if not content:
+            continue
+
+        text = content.get_text("\n", strip=True)
+
+        images = []
+        for img in item.select("a.still-image img"):
+            src = img.get("src")
+            if src:
+                images.append(src if src.startswith("http") else base + src)
+
+        videos = []
+        for v in item.select("video source"):
+            src = v.get("src")
+            if src:
+                videos.append(src if src.startswith("http") else base + src)
+
+        tweets.append({
+            "text": text,
+            "images": images,
+            "videos": videos,
+        })
+
+    return tweets
+
+@app.get("/api/x/search")
+@cache(seconds=60)
+def x_search_api(q: str):
+    html, base = x_fetch("/search?f=tweets&q=" + urllib.parse.quote(q))
+    return {
+        "query": q,
+        "tweets": parse_x_tweets(html, base)
+    }
+
+@app.get("/x/search", response_class=HTMLResponse)
+def x_search_page(request: Request, q: str):
+    data = x_search_api(q)
+    return templates.TemplateResponse(
+        "x_search.html",
+        {
+            "request": request,
+            "query": q,
+            "tweets": data["tweets"]
+        }
+    )
