@@ -471,10 +471,12 @@ def http_exception_handler(_, exc):
         return RedirectResponse("/")
     raise exc
 # ============================================================
-# ★★★ X (Nitter系) 統合 ★★★
+# ★★★ X (Nitter系) 統合（localhost完全排除版）★★★
 # ============================================================
 
 from bs4 import BeautifulSoup
+from fastapi.responses import Response
+import base64
 
 X_INSTANCES = [
     "https://nitter.net",
@@ -485,12 +487,23 @@ X_INSTANCES = [
 def x_fetch(path: str):
     for base in X_INSTANCES:
         try:
-            r = session.get(base + path, timeout=3)
+            r = session.get(
+                base + path,
+                timeout=3,
+                allow_redirects=True,
+                headers={"User-Agent": "Mozilla/5.0"}
+            )
             if r.status_code == 200:
                 return r.text, base
         except:
             pass
     raise APItimeoutError("X fetch failed")
+
+def encode_media_url(url: str) -> str:
+    return base64.urlsafe_b64encode(url.encode()).decode()
+
+def decode_media_url(data: str) -> str:
+    return base64.urlsafe_b64decode(data.encode()).decode()
 
 def parse_x_tweets(html: str, base: str):
     soup = BeautifulSoup(html, "lxml")
@@ -507,19 +520,17 @@ def parse_x_tweets(html: str, base: str):
         for img in item.select("a.still-image img"):
             src = img.get("src")
             if src:
-                if src.startswith("http"):
-                    images.append(src)
-                else:
-                    images.append(base + src)
+                if not src.startswith("http"):
+                    src = base + src
+                images.append("/x/media?u=" + encode_media_url(src))
 
         videos = []
         for v in item.select("video source"):
             src = v.get("src")
             if src:
-                if src.startswith("http"):
-                    videos.append(src)
-                else:
-                    videos.append(base + src)
+                if not src.startswith("http"):
+                    src = base + src
+                videos.append("/x/media?u=" + encode_media_url(src))
 
         tweets.append({
             "text": text,
@@ -550,3 +561,25 @@ def x_search_page(request: Request, q: str):
         }
     )
 
+# ============================================================
+# ★★★ X メディア完全プロキシ（localhost不可）★★★
+# ============================================================
+
+@app.get("/x/media")
+def x_media_proxy(u: str):
+    url = decode_media_url(u)
+
+    if not url.startswith("https://"):
+        raise HTTPException(status_code=400)
+
+    r = session.get(
+        url,
+        stream=True,
+        timeout=5,
+        headers={"User-Agent": "Mozilla/5.0"}
+    )
+
+    return Response(
+        content=r.content,
+        media_type=r.headers.get("content-type", "application/octet-stream")
+    )
