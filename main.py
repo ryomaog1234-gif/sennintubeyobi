@@ -4,8 +4,8 @@ import urllib.parse
 import time
 import datetime
 import os
-import subprocess
 import concurrent.futures
+import threading
 
 from cache import cache
 
@@ -66,13 +66,6 @@ class APItimeoutError(Exception):
 # 共通
 # =========================
 
-def is_json(text: str) -> bool:
-    try:
-        json.loads(text)
-        return True
-    except json.JSONDecodeError:
-        return False
-
 def check_cookie(cookie: Union[str, None]) -> bool:
     return cookie == "True"
 
@@ -81,29 +74,46 @@ def check_cookie(cookie: Union[str, None]) -> bool:
 # =========================
 
 def api_request_core(api_list, url):
+    start = time.time()
+    lock = threading.Lock()
+
     def fetch(api):
         try:
             r = session.get(api + url, timeout=max_api_wait_time)
-            if r.status_code == 200 and is_json(r.text):
+            if r.status_code == 200:
                 return api, r.text
         except:
-            pass
+            return None
         return None
 
-    start = time.time()
+    workers = min(len(api_list), 8)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(api_list)) as executor:
-        futures = [executor.submit(fetch, api) for api in api_list]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(fetch, api): api for api in api_list}
 
         for future in concurrent.futures.as_completed(futures, timeout=max_time):
             if time.time() - start >= max_time - 1:
                 break
+
             result = future.result()
-            if result:
-                api, text = result
-                api_list.remove(api)
-                api_list.insert(0, api)
-                return text
+            if not result:
+                continue
+
+            api, text = result
+            try:
+                json.loads(text)
+            except:
+                continue
+
+            with lock:
+                if api in api_list:
+                    api_list.remove(api)
+                    api_list.insert(0, api)
+
+            for f in futures:
+                f.cancel()
+
+            return text
 
     raise APItimeoutError("API timeout")
 
@@ -128,7 +138,8 @@ def get_search(q, page):
 
     results = []
     for i in data:
-        if i["type"] == "video":
+        t = i.get("type")
+        if t == "video":
             results.append({
                 "type": "video",
                 "title": i["title"],
@@ -138,7 +149,7 @@ def get_search(q, page):
                 "length": str(datetime.timedelta(seconds=i["lengthSeconds"])),
                 "published": i["publishedText"]
             })
-        elif i["type"] == "playlist":
+        elif t == "playlist":
             results.append({
                 "type": "playlist",
                 "title": i["title"],
@@ -180,9 +191,8 @@ def get_data(videoid):
                 audio = f
         elif mime.startswith("video/"):
             h = f.get("height")
-            if h:
-                if h not in videos or ("mp4" in mime and "mp4" not in videos[h]["type"]):
-                    videos[h] = f
+            if h and (h not in videos or "mp4" in mime):
+                videos[h] = f
 
     dash = None
     if audio and videos:
@@ -244,10 +254,7 @@ def get_channel(channelid):
             "channelicon": t["authorThumbnails"][-1]["url"],
             "channelprofile": t.get("description", ""),
             "subscribers_count": t.get("subCountText"),
-            "cover_img_url": (
-                t["authorBanners"][-1]["url"]
-                if t.get("authorBanners") else None
-            )
+            "cover_img_url": t["authorBanners"][-1]["url"] if t.get("authorBanners") else None
         }
     )
 
@@ -261,11 +268,7 @@ def get_home():
 
     for i in data:
         if i.get("type") == "video":
-            if (
-                i.get("isShort") is True
-                or i.get("lengthSeconds") == 0
-                or i.get("lengthText") in ("0:00", "", None)
-            ):
+            if i.get("isShort") or not i.get("lengthSeconds"):
                 shorts.append(i)
             else:
                 videos.append(i)
@@ -298,12 +301,18 @@ templates = Jinja2Templates(directory="templates")
 # 高画質ストリーム
 # =========================
 
-STREAM_YTDL_API_BASE_URL = "https://yudlp.vercel.app/stream/"
+STREAM_API = "https://ytdl-0et1.onrender.com/stream/"
+M3U8_API   = "https://ytdl-0et1.onrender.com/m3u8/"
 
 @app.get("/stream/high")
 def stream_high(v: str):
     try:
-        return RedirectResponse(f"{STREAM_YTDL_API_BASE_URL}{v}")
+        return RedirectResponse(f"{STREAM_API}{v}")
+    except:
+        pass
+
+    try:
+        return RedirectResponse(f"{M3U8_API}{v}")
     except:
         pass
 
@@ -420,9 +429,7 @@ def subuscript(request: Request, sennin: Union[str, None] = Cookie(None)):
         return RedirectResponse("/")
     return templates.TemplateResponse(
         "subuscript.html",
-        {
-            "request": request,
-        }
+        {"request": request}
     )
 
 @app.get("/comments", response_class=HTMLResponse)
