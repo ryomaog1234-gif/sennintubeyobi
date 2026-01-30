@@ -66,29 +66,33 @@ class APItimeoutError(Exception):
 # 共通
 # =========================
 
+def is_json(text: str) -> bool:
+    try:
+        json.loads(text)
+        return True
+    except json.JSONDecodeError:
+        return False
+
 def check_cookie(cookie: Union[str, None]) -> bool:
     return cookie == "True"
 
 # =========================
-# 並列API最速勝ち（高速化）
+# 並列API最速勝ち
 # =========================
 
 def api_request_core(api_list, url):
     def fetch(api):
         try:
             r = session.get(api + url, timeout=max_api_wait_time)
-            if r.status_code == 200:
-                data = json.loads(r.text)
-                return api, data
+            if r.status_code == 200 and is_json(r.text):
+                return api, r.text
         except:
             pass
         return None
 
     start = time.time()
 
-    with concurrent.futures.ThreadPoolExecutor(
-        max_workers=min(5, len(api_list))
-    ) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(api_list)) as executor:
         futures = [executor.submit(fetch, api) for api in api_list]
 
         for future in concurrent.futures.as_completed(futures, timeout=max_time):
@@ -96,10 +100,10 @@ def api_request_core(api_list, url):
                 break
             result = future.result()
             if result:
-                api, data = result
+                api, text = result
                 api_list.remove(api)
                 api_list.insert(0, api)
-                return json.dumps(data)
+                return text
 
     raise APItimeoutError("API timeout")
 
@@ -416,7 +420,9 @@ def subuscript(request: Request, sennin: Union[str, None] = Cookie(None)):
         return RedirectResponse("/")
     return templates.TemplateResponse(
         "subuscript.html",
-        {"request": request}
+        {
+            "request": request,
+        }
     )
 
 @app.get("/comments", response_class=HTMLResponse)
