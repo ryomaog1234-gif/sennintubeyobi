@@ -1,21 +1,21 @@
 import json
-import requests
 import urllib.parse
 import time
 import datetime
 import os
-import subprocess
-import concurrent.futures
+import asyncio
 
-from cache import cache
+from typing import Union
 
+import httpx
 from fastapi import FastAPI, Request, Response, Cookie, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response as RawResponse
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from typing import Union
+
+from cache import cache
 
 # =========================
 # 基本設定
@@ -52,8 +52,15 @@ if os.path.exists("./senninverify"):
     except:
         pass
 
-session = requests.Session()
-session.headers.update({"User-Agent": "Mozilla/5.0"})
+# =========================
+# HTTP Client（async）
+# =========================
+
+async_client = httpx.AsyncClient(
+    headers={"User-Agent": "Mozilla/5.0"},
+    timeout=max_api_wait_time,
+    http2=True,
+)
 
 # =========================
 # 例外
@@ -66,64 +73,59 @@ class APItimeoutError(Exception):
 # 共通
 # =========================
 
-def is_json(text: str) -> bool:
-    try:
-        json.loads(text)
-        return True
-    except json.JSONDecodeError:
-        return False
+def is_json_fast(text: str) -> bool:
+    return bool(text) and text[0] in "{["
 
 def check_cookie(cookie: Union[str, None]) -> bool:
     return cookie == "True"
 
 # =========================
-# 並列API最速勝ち
+# 並列API最速勝ち（async）
 # =========================
 
-def api_request_core(api_list, url):
-    def fetch(api):
+async def api_request_core(api_list, url: str):
+    async def fetch(api: str):
         try:
-            r = session.get(api + url, timeout=max_api_wait_time)
-            if r.status_code == 200 and is_json(r.text):
+            r = await async_client.get(api + url)
+            if r.status_code == 200 and is_json_fast(r.text):
                 return api, r.text
         except:
-            pass
-        return None
+            return None
 
-    start = time.time()
+    tasks = [fetch(api) for api in api_list]
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(api_list)) as executor:
-        futures = [executor.submit(fetch, api) for api in api_list]
-
-        for future in concurrent.futures.as_completed(futures, timeout=max_time):
-            if time.time() - start >= max_time - 1:
-                break
-            result = future.result()
+    try:
+        for coro in asyncio.as_completed(tasks, timeout=max_time):
+            result = await coro
             if result:
                 api, text = result
-                api_list.remove(api)
-                api_list.insert(0, api)
+                # 先頭に持ってくる（破壊的removeを避ける）
+                api_list[:] = [api] + [a for a in api_list if a != api]
                 return text
+    except asyncio.TimeoutError:
+        pass
 
     raise APItimeoutError("API timeout")
 
-def apirequest(url):
-    return api_request_core(apis, url)
+async def apirequest(url: str):
+    return await api_request_core(apis, url)
 
-def apichannelrequest(url):
-    return api_request_core(apichannels, url)
+async def apichannelrequest(url: str):
+    return await api_request_core(apichannels, url)
 
-def apicommentsrequest(url):
-    return api_request_core(apicomments, url)
+async def apicommentsrequest(url: str):
+    return await api_request_core(apicomments, url)
 
 # =========================
 # APIラッパー
 # =========================
 
 @cache(seconds=30)
-def get_search(q, page):
+async def get_search(q, page):
     data = json.loads(
-        apirequest(f"api/v1/search?q={urllib.parse.quote(q)}&page={page}&hl=jp")
+        await apirequest(
+            f"api/v1/search?q={urllib.parse.quote(q)}&page={page}&hl=jp"
+        )
     )
 
     results = []
@@ -158,11 +160,13 @@ def get_search(q, page):
     return results
 
 # =========================
-# ★ DASH対応
+# DASH対応
 # =========================
 
-def get_data(videoid):
-    t = json.loads(apirequest("api/v1/videos/" + urllib.parse.quote(videoid)))
+async def get_data(videoid):
+    t = json.loads(
+        await apirequest("api/v1/videos/" + urllib.parse.quote(videoid))
+    )
 
     videourls = [i["url"] for i in t.get("formatStreams", [])]
     hls_url = t.get("hlsUrl")
@@ -205,13 +209,13 @@ def get_data(videoid):
 
     return (
         [{"id": i["videoId"], "title": i["title"], "author": i["author"], "authorId": i["authorId"]}
-         for i in t["recommendedVideos"]],
+         for i in t.get("recommendedVideos", [])],
         videourls,
-        t["descriptionHtml"].replace("\n", "<br>"),
-        t["title"],
-        t["authorId"],
-        t["author"],
-        t["authorThumbnails"][-1]["url"],
+        t.get("descriptionHtml", "").replace("\n", "<br>"),
+        t.get("title"),
+        t.get("authorId"),
+        t.get("author"),
+        t.get("authorThumbnails", [{}])[-1].get("url"),
         nocookie_url,
         hls_url,
         dash,
@@ -219,11 +223,13 @@ def get_data(videoid):
     )
 
 # =========================
-# ★ チャンネル
+# チャンネル
 # =========================
 
-def get_channel(channelid):
-    t = json.loads(apichannelrequest("api/v1/channels/" + urllib.parse.quote(channelid)))
+async def get_channel(channelid):
+    t = json.loads(
+        await apichannelrequest("api/v1/channels/" + urllib.parse.quote(channelid))
+    )
 
     videos = []
     shorts = []
@@ -240,8 +246,8 @@ def get_channel(channelid):
         videos,
         shorts,
         {
-            "channelname": t["author"],
-            "channelicon": t["authorThumbnails"][-1]["url"],
+            "channelname": t.get("author"),
+            "channelicon": t.get("authorThumbnails", [{}])[-1].get("url"),
             "channelprofile": t.get("description", ""),
             "subscribers_count": t.get("subCountText"),
             "cover_img_url": (
@@ -252,8 +258,8 @@ def get_channel(channelid):
     )
 
 @cache(seconds=30)
-def get_home():
-    data = json.loads(apirequest("api/v1/popular?hl=jp"))
+async def get_home():
+    data = json.loads(await apirequest("api/v1/popular?hl=jp"))
 
     videos = []
     shorts = []
@@ -274,13 +280,17 @@ def get_home():
 
     return videos, shorts, channels
 
-def get_comments(videoid):
-    t = json.loads(apicommentsrequest("api/v1/comments/" + urllib.parse.quote(videoid) + "?hl=jp"))
+async def get_comments(videoid):
+    t = json.loads(
+        await apicommentsrequest(
+            "api/v1/comments/" + urllib.parse.quote(videoid) + "?hl=jp"
+        )
+    )
     return [{
         "author": i["author"],
         "authoricon": i["authorThumbnails"][-1]["url"],
         "body": i["contentHtml"].replace("\n", "<br>")
-    } for i in t["comments"]]
+    } for i in t.get("comments", [])]
 
 # =========================
 # FastAPI
@@ -301,13 +311,13 @@ templates = Jinja2Templates(directory="templates")
 STREAM_YTDL_API_BASE_URL = "https://yudlp.vercel.app/stream/"
 
 @app.get("/stream/high")
-def stream_high(v: str):
+async def stream_high(v: str):
     try:
         return RedirectResponse(f"{STREAM_YTDL_API_BASE_URL}{v}")
     except:
         pass
 
-    t = json.loads(apirequest("api/v1/videos/" + urllib.parse.quote(v)))
+    t = json.loads(await apirequest("api/v1/videos/" + urllib.parse.quote(v)))
     if t.get("hlsUrl"):
         return RedirectResponse(t["hlsUrl"])
 
@@ -318,46 +328,41 @@ def stream_high(v: str):
 # =========================
 
 @app.get("/", response_class=HTMLResponse)
-def home(request: Request, response: Response, sennin: Union[str, None] = Cookie(None)):
+async def home(request: Request, response: Response, sennin: Union[str, None] = Cookie(None)):
     if not check_cookie(sennin):
         return RedirectResponse("/word")
 
     response.set_cookie("sennin", "True", max_age=7 * 24 * 60 * 60)
-
-    videos, shorts, channels = get_home()
+    videos, shorts, channels = await get_home()
 
     return templates.TemplateResponse(
         "home.html",
-        {
-            "request": request,
-            "videos": videos,
-            "shorts": shorts,
-            "channels": channels,
-        }
+        {"request": request, "videos": videos, "shorts": shorts, "channels": channels}
     )
 
 @app.get("/search", response_class=HTMLResponse)
-def search(request: Request, response: Response, q: str, page: int = 1, sennin: Union[str, None] = Cookie(None)):
+async def search(request: Request, response: Response, q: str, page: int = 1, sennin: Union[str, None] = Cookie(None)):
     if not check_cookie(sennin):
         return RedirectResponse("/")
     response.set_cookie("sennin", "True", max_age=7 * 24 * 60 * 60)
+
     return templates.TemplateResponse(
         "search.html",
         {
             "request": request,
-            "results": get_search(q, page),
+            "results": await get_search(q, page),
             "word": q,
             "next": f"/search?q={q}&page={page+1}",
         }
     )
 
 @app.get("/watch", response_class=HTMLResponse)
-def watch(request: Request, response: Response, v: str, sennin: Union[str, None] = Cookie(None)):
+async def watch(request: Request, response: Response, v: str, sennin: Union[str, None] = Cookie(None)):
     if not check_cookie(sennin):
         return RedirectResponse("/")
     response.set_cookie("sennin", "True", max_age=7 * 24 * 60 * 60)
 
-    data = get_data(v)
+    data = await get_data(v)
     t = data[10]
 
     if t.get("isShort") is True:
@@ -393,12 +398,12 @@ def watch(request: Request, response: Response, v: str, sennin: Union[str, None]
     )
 
 @app.get("/channel/{cid}", response_class=HTMLResponse)
-def channel(request: Request, response: Response, cid: str, sennin: Union[str, None] = Cookie(None)):
+async def channel(request: Request, response: Response, cid: str, sennin: Union[str, None] = Cookie(None)):
     if not check_cookie(sennin):
         return RedirectResponse("/")
     response.set_cookie("sennin", "True", max_age=7 * 24 * 60 * 60)
 
-    videos, shorts, info = get_channel(cid)
+    videos, shorts, info = await get_channel(cid)
 
     return templates.TemplateResponse(
         "channel.html",
@@ -415,51 +420,34 @@ def channel(request: Request, response: Response, cid: str, sennin: Union[str, N
     )
 
 @app.get("/subuscript", response_class=HTMLResponse)
-def subuscript(request: Request, sennin: Union[str, None] = Cookie(None)):
+async def subuscript(request: Request, sennin: Union[str, None] = Cookie(None)):
     if not check_cookie(sennin):
         return RedirectResponse("/")
-    return templates.TemplateResponse(
-        "subuscript.html",
-        {
-            "request": request,
-        }
-    )
+    return templates.TemplateResponse("subuscript.html", {"request": request})
 
 @app.get("/comments", response_class=HTMLResponse)
-def comments(request: Request, v: str):
+async def comments(request: Request, v: str):
     return templates.TemplateResponse(
         "comments.html",
-        {"request": request, "comments": get_comments(v)}
+        {"request": request, "comments": await get_comments(v)}
     )
 
 @app.get("/thumbnail")
-def thumbnail(v: str):
-    return RawResponse(
-        content=requests.get(f"https://img.youtube.com/vi/{v}/0.jpg").content,
-        media_type="image/jpeg"
-    )
-
-@app.get("/watchlist", response_class=HTMLResponse)
-def watchlist(request: Request, list: str):
-    results = fetch_playlist_all(list)
-    return templates.TemplateResponse(
-        "watchlist.html",
-        {
-            "request": request,
-            "results": results
-        }
-    )
+async def thumbnail(v: str):
+    async with async_client.stream("GET", f"https://img.youtube.com/vi/{v}/0.jpg") as r:
+        content = await r.aread()
+    return RawResponse(content=content, media_type="image/jpeg")
 
 # =========================
 # 例外
 # =========================
 
 @app.exception_handler(APItimeoutError)
-def api_wait(request: Request, _):
+async def api_wait(request: Request, _):
     return templates.TemplateResponse("APIwait.html", {"request": request}, status_code=500)
 
 @app.exception_handler(StarletteHTTPException)
-def http_exception_handler(_, exc):
+async def http_exception_handler(_, exc):
     if exc.status_code == 404:
         return RedirectResponse("/")
     raise exc
