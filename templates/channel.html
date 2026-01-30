@@ -14,6 +14,7 @@
     --text-main: #111827;
     --text-sub: #6b7280;
     --yt-red: #ff0000;
+    --x-blue: #1d9bf0;
 }
 
 body {
@@ -62,7 +63,6 @@ body {
 }
 
 .subscribe-btn {
-    margin-top: 12px;
     background: var(--yt-red);
     color: #fff;
     border: none;
@@ -71,9 +71,14 @@ body {
     font-size: 14px;
     cursor: pointer;
 }
+
 .subscribe-btn.subscribed {
     background: #e5e7eb;
     color: #111;
+}
+
+.twitter-btn {
+    background: var(--x-blue);
 }
 
 .section-title {
@@ -87,6 +92,7 @@ body {
     border-bottom: 1px solid var(--soft-border);
     margin-top: 12px;
 }
+
 .channel-tabs button {
     background: none;
     border: none;
@@ -94,6 +100,7 @@ body {
     font-size: 15px;
     cursor: pointer;
 }
+
 .channel-tabs button.active {
     border-bottom: 2px solid var(--yt-red);
     font-weight: 600;
@@ -161,10 +168,18 @@ body {
     color: var(--text-sub);
 }
 
-a { text-decoration: none; color: inherit; }
+a {
+    text-decoration: none;
+    color: inherit;
+}
 
-.tab-section { display: none; }
-.tab-section.active { display: block; }
+.tab-section {
+    display: none;
+}
+
+.tab-section.active {
+    display: block;
+}
 
 @media (max-width: 768px) {
     .channel-header {
@@ -187,11 +202,25 @@ a { text-decoration: none; color: inherit; }
     <img src="{{ channelicon }}">
     <div>
         <h1>{{ channelname }}</h1>
+
         <p>
             {% if subscribers_count %}{{ subscribers_count }}{% endif %}
         </p>
-        <p style="white-space:pre-wrap;">{{ channelprofile | safe }}</p>
-        <button id="subscribeBtn" class="subscribe-btn">チャンネル登録</button>
+
+        <p style="white-space:pre-wrap;">
+            {{ channelprofile | safe }}
+        </p>
+
+        <!-- ボタン群 -->
+        <div style="display:flex; gap:12px; margin-top:12px;">
+            <button id="subscribeBtn" class="subscribe-btn">
+                チャンネル登録
+            </button>
+
+            <button id="twitterBtn" class="subscribe-btn twitter-btn">
+                Twitter
+            </button>
+        </div>
     </div>
 </div>
 
@@ -269,6 +298,7 @@ a { text-decoration: none; color: inherit; }
 </div>
 
 <script>
+// タブ切り替え
 document.querySelectorAll(".channel-tabs button").forEach(btn => {
     btn.onclick = () => {
         document.querySelectorAll(".channel-tabs button").forEach(b => b.classList.remove("active"));
@@ -278,26 +308,44 @@ document.querySelectorAll(".channel-tabs button").forEach(btn => {
     };
 });
 
-const btn = document.getElementById("subscribeBtn");
-const key = "subscribed_{{ channelname }}";
+// チャンネル登録（ローカル）
+const subscribeBtn = document.getElementById("subscribeBtn");
+const subKey = "subscribed_{{ channelname }}";
 
-if (localStorage.getItem(key)) {
-    btn.classList.add("subscribed");
-    btn.textContent = "登録済み";
+if (localStorage.getItem(subKey)) {
+    subscribeBtn.classList.add("subscribed");
+    subscribeBtn.textContent = "登録済み";
 }
 
-btn.onclick = () => {
-    if (btn.classList.contains("subscribed")) {
-        localStorage.removeItem(key);
-        btn.classList.remove("subscribed");
-        btn.textContent = "チャンネル登録";
+subscribeBtn.onclick = () => {
+    if (subscribeBtn.classList.contains("subscribed")) {
+        localStorage.removeItem(subKey);
+        subscribeBtn.classList.remove("subscribed");
+        subscribeBtn.textContent = "チャンネル登録";
     } else {
-        localStorage.setItem(key, "1");
-        btn.classList.add("subscribed");
-        btn.textContent = "登録済み";
+        localStorage.setItem(subKey, "1");
+        subscribeBtn.classList.add("subscribed");
+        subscribeBtn.textContent = "登録済み";
     }
+};
+
+// Twitterボタン → Xビューアを別ウィンドウで開く
+const twitterBtn = document.getElementById("twitterBtn");
+
+twitterBtn.onclick = () => {
+    const channelName = "{{ channelname }}";
+
+    const url =
+        "http://localhost:3000/search?q=" +
+        encodeURIComponent(channelName);
+
+    window.open(
+        url,
+        "twitterWindow",
+        "width=500,height=800,resizable=yes,scrollbars=yes"
+    );
 };
 </script>
 
 </body>
-        </html>
+</html>
