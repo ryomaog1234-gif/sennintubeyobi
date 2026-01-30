@@ -5,8 +5,6 @@
     <title>{{ channelname }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <link rel="stylesheet" href="{{ request.base_url }}css/style.css">
-
     <style>
         body {
             margin: 0;
@@ -15,6 +13,45 @@
             color: #ffffff;
         }
 
+        /* ===== ヘッダー検索バー ===== */
+        .topbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: #0f0f0f;
+            border-bottom: 1px solid #222;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .search-form {
+            flex: 1;
+            display: flex;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 10px 14px;
+            border-radius: 999px 0 0 999px;
+            border: none;
+            outline: none;
+            font-size: 14px;
+            background: #181818;
+            color: #fff;
+        }
+
+        .search-btn {
+            padding: 10px 18px;
+            border-radius: 0 999px 999px 0;
+            border: none;
+            background: #303030;
+            color: #fff;
+            cursor: pointer;
+        }
+
+        /* ===== カバー ===== */
         .cover {
             width: 100%;
             height: 180px;
@@ -22,6 +59,7 @@
             background-position: center;
         }
 
+        /* ===== チャンネル ===== */
         .channel-header {
             padding: 16px;
             display: flex;
@@ -55,8 +93,10 @@
             font-size: 14px;
             line-height: 1.6;
             color: #ddd;
+            white-space: pre-wrap;
         }
 
+        /* ===== ボタン ===== */
         .actions {
             padding: 0 16px 16px 16px;
         }
@@ -75,6 +115,7 @@
             opacity: 0.9;
         }
 
+        /* ===== 動画一覧 ===== */
         .video-list {
             padding: 0 16px 32px 16px;
         }
@@ -91,6 +132,7 @@
         .video-thumb {
             width: 160px;
             height: 90px;
+            object-fit: cover;
             background: #000;
             flex-shrink: 0;
         }
@@ -112,6 +154,22 @@
     </style>
 </head>
 <body>
+
+<!-- ===== 検索バー ===== -->
+<div class="topbar">
+    <form class="search-form" action="/search" method="get">
+        <input
+            type="text"
+            name="q"
+            class="search-input"
+            placeholder="検索"
+            required
+        >
+        <button class="search-btn" type="submit">
+            検索
+        </button>
+    </form>
+</div>
 
 {% if cover_img_url %}
 <div
@@ -143,7 +201,7 @@
 
 <div class="actions">
     <a
-        href="{{ request.base_url }}x/search?q={{ channelname | urlencode }}"
+        href="/x/search?q={{ channelname | urlencode }}"
         class="twitter-link"
     >
         Twitter
@@ -153,12 +211,12 @@
 <div class="video-list">
     {% for v in results %}
     <a
-        href="{{ request.base_url }}watch?v={{ v.id }}"
+        href="/watch?v={{ v.id }}"
         class="video-item"
     >
         <img
             class="video-thumb"
-            src="{{ request.base_url }}thumbnail?v={{ v.id }}"
+            src="/thumbnail?v={{ v.id }}"
             alt="thumbnail"
         >
         <div class="video-info">
