@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>動画プレイヤー - 仙人tube</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="stylesheet" href="/css/pure-min.css">
+    <link rel="stylesheet" href="/css/grids-responsive-min.css">
+    <link rel="stylesheet" href="/css/default.css">
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+
+    <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+<style>
+    body {
+        margin: 0;
+        background: #000;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+    }
+
+    #videoPlayer {
+        width: 100%;
+        max-width: 960px;
+        height: 540px;
+        background: black;
+        border-radius: 12px;
+    }
+
+    .video-error-alert {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #ef4444;
+        color: white;
+        padding: 12px 40px 12px 20px;
+        border-radius: 12px;
+        font-size: 14px;
+        z-index: 10;
+        display: none;
+    }
+
+    .video-error-alert .close-btn {
+        position: absolute;
+        top: 6px;
+        right: 10px;
+        font-size: 18px;
+        cursor: pointer;
+        line-height: 1;
+        opacity: 0.8;
+    }
+
+    .video-error-alert .close-btn:hover {
+        opacity: 1;
+    }
+</style>
+</head>
+<body>
+
+<div id="videoError" class="video-error-alert">
+    ⚠ 動画の取得に失敗しました。
+    <span class="close-btn" onclick="hideVideoError()">×</span>
+</div>
+
+<video id="videoPlayer" controls></video>
+
+<script>
+const params = new URLSearchParams(window.location.search);
+const src = params.get("src"); // 親から渡された M3U8 URL
+
+const video = document.getElementById("videoPlayer");
+let hlsPlayer = null;
+
+function showVideoError() {
+    const error = document.getElementById("videoError");
+    error.style.display = "block";
+    error.style.animation = "none";
+    error.offsetHeight; // リフロー
+    error.style.animation = null;
+}
+
+function hideVideoError() {
+    document.getElementById("videoError").style.display = "none";
+}
+
+if(src){
+    if(video.canPlayType("application/vnd.apple.mpegurl")){
+        // Safari, iOS ネイティブ対応
+        video.src = src;
+        video.play().catch(showVideoError);
+    } else if(Hls.isSupported()){
+        hlsPlayer = new Hls();
+        hlsPlayer.loadSource(src);
+        hlsPlayer.attachMedia(video);
+
+        hlsPlayer.on(Hls.Events.MANIFEST_PARSED, () => {
+            video.play().catch(showVideoError);
+        });
+
+        hlsPlayer.on(Hls.Events.ERROR, () => {
+            showVideoError();
+        });
+    } else {
+        // HLS非対応ブラウザ
+        showVideoError();
+    }
+} else {
+    showVideoError();
+}
+</script>
+
+</body>
+</html>
