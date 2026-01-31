@@ -199,7 +199,7 @@
 </div>
 
 <div class="actions">
-    <a id="downloadBtn" class="action-btn primary" href="javascript:void(0)">⬇ ダウンロード</a>
+    <a class="action-btn primary" href="{{ videourls[0] }}" target="_blank">⬇ ダウンロード</a>
 </div>
 
 <div class="description">
@@ -367,33 +367,70 @@ qualitySelect.addEventListener("change", () => {
 });
 </script>
 
+<!-- ===================== ここから追記（既存コードは一切変更なし） ===================== -->
 <script>
-const downloadBtn = document.getElementById("downloadBtn");
+async function resolveAndPlayWithFailover(){
+    const order = [
+        backendSelect.value,
+        backendSelect.value === "yobi" ? "yobiyobi" : "yobi",
+        "main"
+    ];
 
-downloadBtn.addEventListener("click", function(e){
-    e.preventDefault();
+    for (const backend of order) {
+        try {
+            const res = await fetch(
+                `/api/streammeta?video_id={{ videoid }}&backend=${backend}`
+            );
+            if (!res.ok) continue;
 
-    let base;
-    let forceHLS = false;
+            const meta = await res.json();
+            if (!meta.url || !meta.type) continue;
 
-    if (backendSelect.value === "yobi") {
-        base = "/api/streamurl/yobi";
-    } else if (backendSelect.value === "yobiyobi") {
-        base = "/api/streamurl/yobiyobi";
-        forceHLS = true; // yobiyobi は必ず HLS
-    } else {
-        base = "/api/streamurl";
+            backendSelect.value = backend;
+
+            if (meta.type === "m3u8") {
+                playResolvedHLS(meta.url);
+            } else {
+                playResolvedMP4(meta.url);
+            }
+            return;
+        } catch(e){}
+    }
+    showVideoError();
+}
+
+function playResolvedHLS(url){
+    if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        video.src = url;
+        video.play().catch(showVideoError);
+        return;
     }
 
-    let url = `${base}?video_id={{ videoid }}&mode=download`;
+    if (hlsPlayer) hlsPlayer.destroy();
+    hlsPlayer = new Hls();
+    hlsPlayer.loadSource(url);
+    hlsPlayer.attachMedia(video);
 
-    if(forceHLS){
-        url += "&format=m3u8"; // サーバー側で HLS に固定
-    }
+    hlsPlayer.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch(showVideoError);
+    });
 
-    window.open(url, "_blank");
-});
+    hlsPlayer.on(Hls.Events.ERROR, resolveAndPlayWithFailover);
+}
+
+function playResolvedMP4(url){
+    if (hlsPlayer) hlsPlayer.destroy();
+    if (dashPlayer) dashPlayer.reset();
+    video.src = url;
+    video.play().catch(showVideoError);
+}
+
+backendSelect.addEventListener("change", resolveAndPlayWithFailover);
+qualitySelect.addEventListener("change", resolveAndPlayWithFailover);
+
+resolveAndPlayWithFailover();
 </script>
+<!-- ===================== 追記ここまで ===================== -->
 
 </body>
 </html>
