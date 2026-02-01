@@ -6,20 +6,74 @@ import time
 
 yobiyobi = Blueprint("yobiyobi", __name__)
 
-STREAM_API = "https://ytdl-0et1.onrender.com/api/stream/"
-M3U8_API   = "https://ytdl-0et1.onrender.com/m3u8/"
-
-INVIDIOUS_INSTANCES = [
-    'https://inv.nadeko.net',
-    'https://invidious.f5.si',
-    'https://invidious.lunivers.trade',
-    'https://invidious.ducks.party',
-    'https://super8.absturztau.be',
-    'https://invidious.nikkosphere.com',
-    'https://yt.omada.cafe',
-    'https://iv.melmac.space',
-    'https://iv.duti.dev'
+# ===============================
+# yt-dlp 系 API（複数対応）
+# ===============================
+STREAM_APIS = [
+    "https://ytdl-0et1.onrender.com/api/stream/",
+    "https://yudlp.vercel.app/stream/"
 ]
+
+M3U8_API = "https://ytdl-0et1.onrender.com/m3u8/"
+
+# ===============================
+# Invidious / Poketube / Materialious
+# ===============================
+INVIDIOUS_INSTANCES = list(set([
+    "https://yt.omada.cafe",
+    "https://invidious.schenkel.eti.br",
+    "https://invidious.nikkosphere.com",
+    "https://siawaseok-wakame-server2.glitch.me",
+    "https://clover-pitch-position.glitch.me",
+    "https://inv.nadeko.net",
+    "https://iv.duti.dev",
+    "https://yewtu.be",
+    "https://id.420129.xyz",
+    "https://invidious.f5.si",
+    "https://invidious.nerdvpn.de",
+    "https://invidious.tiekoetter.com",
+    "https://lekker.gay",
+    "https://nyc1.iv.ggtyler.dev",
+    "https://iv.ggtyler.dev",
+    "https://invid-api.poketube.fun",
+    "https://iv.melmac.space",
+    "https://cal1.iv.ggtyler.dev",
+    "https://pol1.iv.ggtyler.dev",
+    "https://yt.artemislena.eu",
+    "https://invidious.lunivers.trade",
+    "https://eu-proxy.poketube.fun",
+    "https://invidious.reallyaweso.me",
+    "https://invidious.dhusch.de",
+    "https://usa-proxy2.poketube.fun",
+    "https://invidious.darkness.service",
+    "https://iv.datura.network",
+    "https://invidious.private.coffee",
+    "https://invidious.projectsegfau.lt",
+    "https://invidious.perennialte.ch",
+    "https://usa-proxy.poketube.fun",
+    "https://invidious.exma.de",
+    "https://invidious.einfachzocken.eu",
+    "https://inv.zzls.xyz",
+    "https://yt.yoc.ovh",
+    "https://rust.oskamp.nl",
+    "https://invidious.adminforge.de",
+    "https://invidious.catspeed.cc",
+    "https://inst1.inv.catspeed.cc",
+    "https://inst2.inv.catspeed.cc",
+    "https://materialious.nadeko.net",
+    "https://inv.us.projectsegfau.lt",
+    "https://invidious.qwik.space",
+    "https://invidious.jing.rocks",
+    "https://yt.thechangebook.org",
+    "https://vro.omcat.info",
+    "https://iv.nboeck.de",
+    "https://youtube.mosesmang.com",
+    "https://iteroni.com",
+    "https://subscriptions.gir.st",
+    "https://invidious.fdn.fr",
+    "https://inv.vern.cc",
+    "https://invi.susurrando.com"
+]))
 
 TIMEOUT = (3, 6)
 http_session = requests.Session()
@@ -37,10 +91,10 @@ def sorted_instances():
     )
 
 def score_success(instance, latency):
-    INSTANCE_SCORE[instance] += max(1, 5 - int(latency * 2))
+    INSTANCE_SCORE[instance] += max(1, 8 - int(latency * 2))
 
 def score_fail(instance):
-    INSTANCE_SCORE[instance] -= 3
+    INSTANCE_SCORE[instance] -= 5
 
 
 # ===============================
@@ -60,37 +114,47 @@ def get_random_headers():
 
 
 # ===============================
-# Invidious 解決
+# Invidious 解決（1080p 最優先）
 # ===============================
 def resolve_invidious(video_id, want_hls=False):
     for base in sorted_instances():
         start = time.time()
         try:
-            # HLS 優先
-            if want_hls:
-                res = http_session.get(
-                    f"{base}/api/v1/videos/{video_id}",
-                    headers=get_random_headers(),
-                    timeout=TIMEOUT
-                )
-                if res.status_code == 200:
-                    data = res.json()
-                    hls_url = data.get("hlsUrl") or data.get("manifestUrl")
-                    if hls_url:
-                        score_success(base, time.time() - start)
-                        return {"type": "m3u8", "url": hls_url}
-
-            # mp4 fallback
             res = http_session.get(
-                f"{base}/latest_version",
-                params={"id": video_id, "itag": "18", "local": "true"},
+                f"{base}/api/v1/videos/{video_id}",
                 headers=get_random_headers(),
-                timeout=TIMEOUT,
-                allow_redirects=True
+                timeout=TIMEOUT
             )
-            if res.status_code == 200 and res.url:
+            if res.status_code != 200:
+                score_fail(base)
+                continue
+
+            data = res.json()
+
+            if want_hls:
+                hls_url = data.get("hlsUrl") or data.get("manifestUrl")
+                if hls_url:
+                    score_success(base, time.time() - start)
+                    return {"type": "m3u8", "url": hls_url}
+
+            formats = data.get("adaptiveFormats", []) + data.get("formatStreams", [])
+            best = None
+            best_h = 0
+
+            for f in formats:
+                if f.get("container") != "mp4":
+                    continue
+                try:
+                    h = int(f.get("resolution", "0x0").split("x")[-1])
+                except:
+                    h = 0
+                if h >= best_h and f.get("url"):
+                    best = f
+                    best_h = h
+
+            if best:
                 score_success(base, time.time() - start)
-                return {"type": "mp4", "url": res.url}
+                return {"type": "mp4", "url": best["url"]}
 
             score_fail(base)
         except:
@@ -105,33 +169,49 @@ def resolve_invidious(video_id, want_hls=False):
 # ===============================
 def resolve_stream(video_id, want_hls=False):
     urls = {
-        "primary": None,
-        "fallback": None,
-        "m3u8": None,
+        "mp4_1080": None,
+        "mp4_best": None,
+        "m3u8_1080": None,
+        "m3u8_best": None,
         "invidious": None
     }
 
-    # yt-dlp mp4
-    try:
-        res = http_session.get(
-            f"{STREAM_API}{video_id}",
-            headers=get_random_headers(),
-            timeout=TIMEOUT
-        )
-        if res.status_code == 200:
-            formats = res.json().get("formats", [])
-            for fmt in formats:
-                if str(fmt.get("itag")) == "18" and fmt.get("url"):
-                    urls["primary"] = fmt["url"]
-                    break
-            for fmt in formats:
-                if fmt.get("url") and fmt.get("vcodec") != "none":
-                    urls["fallback"] = fmt["url"]
-                    break
-    except:
-        pass
+    # yt-dlp MP4
+    for api in STREAM_APIS:
+        try:
+            res = http_session.get(
+                f"{api}{video_id}",
+                headers=get_random_headers(),
+                timeout=TIMEOUT
+            )
+            if res.status_code != 200:
+                continue
 
-    # yt-dlp m3u8
+            formats = res.json().get("formats", [])
+            best_h = 0
+
+            for fmt in formats:
+                if fmt.get("vcodec") == "none":
+                    continue
+                url = fmt.get("url")
+                try:
+                    h = int(fmt.get("resolution", "0x0").split("x")[-1])
+                except:
+                    h = 0
+
+                if h >= 1080 and not urls["mp4_1080"]:
+                    urls["mp4_1080"] = url
+
+                if h > best_h and url:
+                    urls["mp4_best"] = url
+                    best_h = h
+
+            if urls["mp4_1080"] or urls["mp4_best"]:
+                break
+        except:
+            continue
+
+    # yt-dlp HLS
     if want_hls:
         try:
             res = http_session.get(
@@ -141,26 +221,28 @@ def resolve_stream(video_id, want_hls=False):
             )
             if res.status_code == 200:
                 m3u8_formats = res.json().get("m3u8_formats", [])
-                if m3u8_formats:
-                    best = max(
-                        m3u8_formats,
-                        key=lambda x: int(
-                            (x.get("resolution", "0x0").split("x")[-1]) or 0
-                        )
-                    )
-                    urls["m3u8"] = best.get("url")
+                best_h = 0
+                for f in m3u8_formats:
+                    try:
+                        h = int(f.get("resolution", "0x0").split("x")[-1])
+                    except:
+                        h = 0
+                    if h >= 1080 and not urls["m3u8_1080"]:
+                        urls["m3u8_1080"] = f.get("url")
+                    if h > best_h and f.get("url"):
+                        urls["m3u8_best"] = f.get("url")
+                        best_h = h
         except:
             pass
 
-    # 全滅時 Invidious
-    if not urls["m3u8"] and not urls["fallback"] and not urls["primary"]:
+    if not any(urls.values()):
         urls["invidious"] = resolve_invidious(video_id, want_hls)
 
     return urls
 
 
 # ===============================
-# redirect 用 API
+# redirect API
 # ===============================
 @yobiyobi.route("/api/streamurl/yobiyobi")
 def api_streamurl_yobiyobi():
@@ -173,29 +255,25 @@ def api_streamurl_yobiyobi():
     want_hls = (mode == "download")
     urls = resolve_stream(video_id, want_hls)
 
-    if mode == "download":
-        if urls.get("m3u8"):
-            return redirect(urls["m3u8"], 302)
-        if urls.get("invidious"):
-            return redirect(urls["invidious"]["url"], 302)
-        if urls.get("fallback"):
-            return redirect(urls["fallback"], 302)
-        if urls.get("primary"):
-            return redirect(urls["primary"], 302)
-        return "", 404
+    if want_hls:
+        if urls["m3u8_1080"]:
+            return redirect(urls["m3u8_1080"], 302)
+        if urls["m3u8_best"]:
+            return redirect(urls["m3u8_best"], 302)
 
-    if urls.get("fallback"):
-        return redirect(urls["fallback"], 302)
-    if urls.get("primary"):
-        return redirect(urls["primary"], 302)
-    if urls.get("invidious") and urls["invidious"]["type"] == "mp4":
+    if urls["mp4_1080"]:
+        return redirect(urls["mp4_1080"], 302)
+    if urls["mp4_best"]:
+        return redirect(urls["mp4_best"], 302)
+
+    if urls["invidious"]:
         return redirect(urls["invidious"]["url"], 302)
 
     return "", 404
 
 
 # ===============================
-# ★ 修整済み streammeta（フロント互換）
+# streammeta
 # ===============================
 @yobiyobi.route("/api/streammeta")
 def api_streammeta():
@@ -209,28 +287,14 @@ def api_streammeta():
     want_hls = (mode == "download")
     urls = resolve_stream(video_id, want_hls)
 
-    if urls.get("m3u8"):
-        return jsonify({
-            "type": "m3u8",
-            "url": urls["m3u8"]
-        })
+    for k in ["m3u8_1080", "m3u8_best", "mp4_1080", "mp4_best"]:
+        if urls.get(k):
+            return jsonify({
+                "type": "m3u8" if k.startswith("m3u8") else "mp4",
+                "url": urls[k]
+            })
 
-    if urls.get("invidious") and urls["invidious"]["type"] == "m3u8":
-        return jsonify({
-            "type": "m3u8",
-            "url": urls["invidious"]["url"]
-        })
-
-    if urls.get("fallback"):
-        return jsonify({
-            "type": "mp4",
-            "url": urls["fallback"]
-        })
-
-    if urls.get("primary"):
-        return jsonify({
-            "type": "mp4",
-            "url": urls["primary"]
-        })
+    if urls["invidious"]:
+        return jsonify(urls["invidious"])
 
     return jsonify({}), 404
