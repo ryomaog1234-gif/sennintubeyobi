@@ -466,10 +466,15 @@ def api_wait(request: Request, _):
     return templates.TemplateResponse("APIwait.html", {"request": request}, status_code=500)
 
 @app.exception_handler(StarletteHTTPException)
-def http_exception_handler(_, exc):
+def http_exception_handler(request: Request, exc):
     if exc.status_code == 404:
-        return RedirectResponse("/")
+        return templates.TemplateResponse(
+            "404.html",
+            {"request": request},
+            status_code=404
+        )
     raise exc
+
 # ============================================================
 # ★★★ X (Nitter系) 統合（localhost完全排除版）★★★
 # ============================================================
