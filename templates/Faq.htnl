@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FAQ</title>
+
+  <script src="/js/tailwindcss.js"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+  <style>
+    .faq-content a {
+      color: #2563eb;
+      text-decoration: underline;
+    }
+    .faq-content a:hover {
+      color: #1d4ed8;
+    }
+  </style>
+</head>
+
+<body class="bg-gray-100 text-gray-900 font-sans">
+
+<div class="max-w-4xl mx-auto px-4 py-10">
+
+  <!-- 検索（FAQ用） -->
+  <input
+    type="text"
+    id="search"
+    placeholder="FAQを検索"
+    class="w-full mb-6 px-4 py-3 rounded-lg border shadow-sm focus:ring-2 focus:ring-red-500"
+  >
+
+  <!-- FAQ LIST -->
+  <div class="space-y-3" id="app-list">
+
+    <!-- FAQ -->
+    <div class="faq-item bg-white border rounded-lg shadow-sm">
+      <button class="faq-btn w-full flex justify-between items-center px-5 py-4 text-left">
+        <span class="faq-title font-medium">基本的な使い方</span>
+        <svg class="faq-icon w-5 h-5 transition-transform"
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+
+      <div class="faq-content hidden px-5 pb-5 text-sm text-gray-700 leading-relaxed">
+        <p>
+          ホームからキーワードを検索し、表示された動画のサムネイルをクリックすると再生ページに移動します。
+        </p>
+
+        <div class="mt-4 p-3 bg-yellow-50 border border-yellow-300 rounded">
+          <strong class="text-yellow-700">⚠ 操作の連続実行について</strong>
+          <p>
+            動画の連続クリックや再読み込みの繰り返しは、サーバーに負荷がかかるためお控えください。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="faq-item bg-white border rounded-lg shadow-sm">
+      <button class="faq-btn w-full flex justify-between items-center px-5 py-4 text-left">
+        <span class="faq-title font-medium">画質を変更したい</span>
+        <svg class="faq-icon w-5 h-5 transition-transform"
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+
+      <div class="faq-content hidden px-5 pb-5 text-sm text-gray-700">
+        <p>
+          まだだから待ってね
+        </p>
+
+        <div class="mt-4 p-3 bg-red-50 border border-red-300 rounded">
+          <strong class="text-red-600">❗ 読みこみが終わらない</strong>
+          <p>
+            ひとつのurlにアクセスが集中しています他のリンクを使おう。
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="faq-item bg-white border rounded-lg shadow-sm">
+      <button class="faq-btn w-full flex justify-between items-center px-5 py-4 text-left">
+        <span class="faq-title font-medium">サーバーを変更したい</span>
+        <svg class="faq-icon w-5 h-5 transition-transform"
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+
+      <div class="faq-content hidden px-5 pb-5 text-sm text-gray-700">
+        <p>
+          再生ページのしたの方からサーバーを変更できます。
+        </p>
+      </div>
+    </div>
+
+    <div class="faq-item bg-white border rounded-lg shadow-sm">
+      <button class="faq-btn w-full flex justify-between items-center px-5 py-4 text-left">
+        <span class="faq-title font-medium">動画の再生方法について</span>
+        <svg class="faq-icon w-5 h-5 transition-transform"
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+
+      <div class="faq-content hidden px-5 pb-5 text-sm text-gray-700">
+        <p>
+          再生方法には「通常」「nocookie」の２種類があります。
+          規制がない場合は、埋め込み再生を推奨しています。
+        </p>
+      </div>
+    </div>
+
+    <div class="faq-item bg-white border rounded-lg shadow-sm">
+      <button class="faq-btn w-full flex justify-between items-center px-5 py-4 text-left">
+        <span class="faq-title font-medium">エラー: 503 が表示される</span>
+        <svg class="faq-icon w-5 h-5 transition-transform"
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+
+      <div class="faq-content hidden px-5 pb-5 text-sm text-gray-700">
+        <p>
+          動画の取得に失敗しました。
+          再生サーバーを変更するか、時間をおいて再度お試しください。
+        </p>
+      </div>
+    </div>
+
+    <div class="faq-item bg-white border rounded-lg shadow-sm">
+      <button class="faq-btn w-full flex justify-between items-center px-5 py-4 text-left">
+        <span class="faq-title font-medium">お問い合わせ</span>
+        <svg class="faq-icon w-5 h-5 transition-transform"
+          fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+
+      <div class="faq-content hidden px-5 pb-5 text-sm text-gray-700">
+        <p>
+          <a href="https://docs.google.com/forms/d/e/1FAIpQLSeMJ85X7m0whUlISf_Vs-TSsYQ1QvTs42Ds_l4corcB6fHzLA/viewform?embedded=true&pli=1">
+            お問い合わせフォーム
+          </a>
+          からご連絡ください。
+        </p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  $(document).ready(function () {
+    $('.faq-btn').click(function () {
+      $(this).next('.faq-content').toggleClass('hidden');
+      $(this).find('.faq-icon').toggleClass('rotate-180');
+    });
+  });
+
+  const searchInput = document.getElementById('search');
+  const tools = document.querySelectorAll('.faq-item');
+
+  searchInput.addEventListener('input', function () {
+    const text = searchInput.value.toLowerCase();
+    tools.forEach(tool => {
+      tool.style.display =
+        tool.textContent.toLowerCase().includes(text) ? '' : 'none';
+    });
+  });
+</script>
+
+</body>
+</html>
