@@ -114,9 +114,9 @@ def get_random_headers():
 
 
 # ===============================
-# Invidious 解決（1080p 最優先）
+# Invidious 解決（MP4は1080pのみ）
 # ===============================
-def resolve_invidious(video_id, want_hls=False):
+def resolve_invidious(video_id):
     for base in sorted_instances():
         start = time.time()
         try:
@@ -130,16 +130,7 @@ def resolve_invidious(video_id, want_hls=False):
                 continue
 
             data = res.json()
-
-            if want_hls:
-                hls_url = data.get("hlsUrl") or data.get("manifestUrl")
-                if hls_url:
-                    score_success(base, time.time() - start)
-                    return {"type": "m3u8", "url": hls_url}
-
             formats = data.get("adaptiveFormats", []) + data.get("formatStreams", [])
-            best = None
-            best_h = 0
 
             for f in formats:
                 if f.get("container") != "mp4":
@@ -147,14 +138,12 @@ def resolve_invidious(video_id, want_hls=False):
                 try:
                     h = int(f.get("resolution", "0x0").split("x")[-1])
                 except:
-                    h = 0
-                if h >= best_h and f.get("url"):
-                    best = f
-                    best_h = h
+                    continue
 
-            if best:
-                score_success(base, time.time() - start)
-                return {"type": "mp4", "url": best["url"]}
+                # ★ MP4は1080pのみ許可
+                if h == 1080 and f.get("url"):
+                    score_success(base, time.time() - start)
+                    return {"type": "mp4", "url": f["url"]}
 
             score_fail(base)
         except:
@@ -170,13 +159,13 @@ def resolve_invidious(video_id, want_hls=False):
 def resolve_stream(video_id, want_hls=False):
     urls = {
         "mp4_1080": None,
-        "mp4_best": None,
-        "m3u8_1080": None,
         "m3u8_best": None,
         "invidious": None
     }
 
-    # yt-dlp MP4
+    # ===============================
+    # yt-dlp MP4（1080pのみ）
+    # ===============================
     for api in STREAM_APIS:
         try:
             res = http_session.get(
@@ -187,31 +176,27 @@ def resolve_stream(video_id, want_hls=False):
             if res.status_code != 200:
                 continue
 
-            formats = res.json().get("formats", [])
-            best_h = 0
-
-            for fmt in formats:
+            for fmt in res.json().get("formats", []):
                 if fmt.get("vcodec") == "none":
                     continue
-                url = fmt.get("url")
                 try:
                     h = int(fmt.get("resolution", "0x0").split("x")[-1])
                 except:
-                    h = 0
+                    continue
 
-                if h >= 1080 and not urls["mp4_1080"]:
-                    urls["mp4_1080"] = url
+                # ★ MP4は1080pのみ
+                if h == 1080 and fmt.get("url"):
+                    urls["mp4_1080"] = fmt["url"]
+                    break
 
-                if h > best_h and url:
-                    urls["mp4_best"] = url
-                    best_h = h
-
-            if urls["mp4_1080"] or urls["mp4_best"]:
+            if urls["mp4_1080"]:
                 break
         except:
             continue
 
-    # yt-dlp HLS
+    # ===============================
+    # yt-dlp HLS（解像度不問・best）
+    # ===============================
     if want_hls:
         try:
             res = http_session.get(
@@ -220,23 +205,24 @@ def resolve_stream(video_id, want_hls=False):
                 timeout=TIMEOUT
             )
             if res.status_code == 200:
-                m3u8_formats = res.json().get("m3u8_formats", [])
                 best_h = 0
-                for f in m3u8_formats:
+                for f in res.json().get("m3u8_formats", []):
                     try:
                         h = int(f.get("resolution", "0x0").split("x")[-1])
                     except:
                         h = 0
-                    if h >= 1080 and not urls["m3u8_1080"]:
-                        urls["m3u8_1080"] = f.get("url")
+
                     if h > best_h and f.get("url"):
-                        urls["m3u8_best"] = f.get("url")
+                        urls["m3u8_best"] = f["url"]
                         best_h = h
         except:
             pass
 
-    if not any(urls.values()):
-        urls["invidious"] = resolve_invidious(video_id, want_hls)
+    # ===============================
+    # Invidious（MP4 1080pのみ）
+    # ===============================
+    if not urls["mp4_1080"]:
+        urls["invidious"] = resolve_invidious(video_id)
 
     return urls
 
@@ -255,17 +241,15 @@ def api_streamurl_yobiyobi():
     want_hls = (mode == "download")
     urls = resolve_stream(video_id, want_hls)
 
-    if want_hls:
-        if urls["m3u8_1080"]:
-            return redirect(urls["m3u8_1080"], 302)
-        if urls["m3u8_best"]:
-            return redirect(urls["m3u8_best"], 302)
-
+    # ★ MP4 1080p 最優先
     if urls["mp4_1080"]:
         return redirect(urls["mp4_1080"], 302)
-    if urls["mp4_best"]:
-        return redirect(urls["mp4_best"], 302)
 
+    # ★ MP4が無い場合のみ HLS 許可
+    if want_hls and urls["m3u8_best"]:
+        return redirect(urls["m3u8_best"], 302)
+
+    # ★ Invidious MP4 1080p
     if urls["invidious"]:
         return redirect(urls["invidious"]["url"], 302)
 
@@ -287,12 +271,11 @@ def api_streammeta():
     want_hls = (mode == "download")
     urls = resolve_stream(video_id, want_hls)
 
-    for k in ["m3u8_1080", "m3u8_best", "mp4_1080", "mp4_best"]:
-        if urls.get(k):
-            return jsonify({
-                "type": "m3u8" if k.startswith("m3u8") else "mp4",
-                "url": urls[k]
-            })
+    if urls["mp4_1080"]:
+        return jsonify({"type": "mp4", "url": urls["mp4_1080"]})
+
+    if want_hls and urls["m3u8_best"]:
+        return jsonify({"type": "m3u8", "url": urls["m3u8_best"]})
 
     if urls["invidious"]:
         return jsonify(urls["invidious"])
