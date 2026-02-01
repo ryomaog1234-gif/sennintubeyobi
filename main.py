@@ -587,4 +587,4 @@ def x_media_proxy(u: str):
     return Response(
         content=r.content,
         media_type=r.headers.get("content-type", "application/octet-stream")
-    )
+            )
