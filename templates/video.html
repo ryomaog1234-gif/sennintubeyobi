@@ -221,6 +221,7 @@
         <option value="main">main</option>
         <option value="yobi">yobi</option>
         <option value="yobiyobi">yobiyobi</option>
+        <option value="wkt">wkt</option>
     </select>
 </div>
 
@@ -285,9 +286,66 @@ video.src = urls[1] || urls[0];
 <script>
 const originalVideoHTML = document.querySelector(".player-wrapper").innerHTML;
 
+async function playWkt(video){
+    try{
+        const api =
+            getStreamBase() +
+            "?v={{ videoid }}" +
+            "&q=" + qualitySelect.value +
+            "&wkt=1";
+
+        const res = await fetch(api);
+        if(!res.ok) throw new Error("api error");
+
+        const info = await res.json();
+        if(!info.videoUrl || !info.audioUrl) throw new Error("invalid json");
+
+        if(!window.MediaSource){
+            video.src = info.videoUrl;
+            video.play();
+            return;
+        }
+
+        const ms = new MediaSource();
+        video.src = URL.createObjectURL(ms);
+
+        ms.addEventListener("sourceopen", async ()=>{
+            const vb = ms.addSourceBuffer(info.mimeVideo || 'video/webm; codecs="vp9"');
+            const ab = ms.addSourceBuffer(info.mimeAudio || 'audio/webm; codecs="opus"');
+
+            const vbuf = await (await fetch(info.videoUrl)).arrayBuffer();
+            const abuf = await (await fetch(info.audioUrl)).arrayBuffer();
+
+            vb.appendBuffer(vbuf);
+            vb.addEventListener("updateend", ()=>{
+                ab.appendBuffer(abuf);
+            }, { once:true });
+
+            ab.addEventListener("updateend", ()=>{
+                ms.endOfStream();
+                video.play();
+            }, { once:true });
+        });
+    }catch(e){
+        showVideoError();
+    }
+}
+
 function updatePlayer(){
     const backend = backendSelect.value;
     const wrapper = document.querySelector(".player-wrapper");
+
+    if(backend === "wkt"){
+        wrapper.innerHTML = "";
+        const v = document.createElement("video");
+        v.controls = true;
+        v.poster = "https://img.youtube.com/vi/{{ videoid }}/0.jpg";
+        v.style.width = "100%";
+        v.onerror = showVideoError;
+        wrapper.appendChild(v);
+        playWkt(v);
+        return;
+    }
 
     if(backend === "yobiyobi"){
         const iframe = document.createElement("iframe");
@@ -309,10 +367,7 @@ function updatePlayer(){
     }
 }
 
-backendSelect.addEventListener("change", () => {
-    updatePlayer();
-});
-
+backendSelect.addEventListener("change", updatePlayer);
 updatePlayer();
 </script>
 <!-- ===================== 追記ここまで ===================== -->
