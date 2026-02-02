@@ -1,11 +1,12 @@
 # main.py
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import StreamingResponse
 import requests
 import random
 import subprocess
 import uuid
 import os
+import threading
 
 app = FastAPI()
 
@@ -74,7 +75,7 @@ def audio_score(fmt):
 
 
 # ===============================
-# 最適 video + audio 選択（完全版）
+# 最適 video + audio 選択
 # ===============================
 def select_best_video_audio(formats, safari=False):
     videos = [f for f in formats if is_video(f)]
@@ -105,10 +106,22 @@ def select_best_video_audio(formats, safari=False):
 
 
 # ===============================
-# 動画＋音声 mux API（最終完成形）
+# tmp 自動削除
+# ===============================
+def delete_later(path, delay=60):
+    def _del():
+        try:
+            os.remove(path)
+        except Exception:
+            pass
+    threading.Timer(delay, _del).start()
+
+
+# ===============================
+# 動画＋音声 mux + Range 対応
 # ===============================
 @app.get("/api/stream/mux")
-def api_stream_mux(video_id: str, safari: bool = False):
+def api_stream_mux(request: Request, video_id: str, safari: bool = False):
     random.shuffle(VIDEO_APIS)
 
     for base in VIDEO_APIS:
@@ -130,6 +143,10 @@ def api_stream_mux(video_id: str, safari: bool = False):
         cmd = [
             "ffmpeg",
             "-y",
+            "-headers", "User-Agent: Mozilla/5.0\r\n",
+            "-reconnect", "1",
+            "-reconnect_streamed", "1",
+            "-reconnect_delay_max", "5",
             "-i", video["url"],
             "-i", audio["url"],
             "-c:v", "copy",
@@ -149,10 +166,46 @@ def api_stream_mux(video_id: str, safari: bool = False):
             print("ffmpeg error:", e)
             continue
 
-        return FileResponse(
-            out_path,
-            media_type="video/mp4",
-            filename=f"{video_id}.mp4",
+        file_size = os.path.getsize(out_path)
+        range_header = request.headers.get("range")
+
+        def file_iterator(start=0, end=None, chunk_size=1024 * 1024):
+            with open(out_path, "rb") as f:
+                f.seek(start)
+                remaining = (end - start + 1) if end else None
+                while True:
+                    chunk = f.read(chunk_size if not remaining else min(chunk_size, remaining))
+                    if not chunk:
+                        break
+                    if remaining:
+                        remaining -= len(chunk)
+                    yield chunk
+
+        headers = {
+            "Accept-Ranges": "bytes",
+            "Content-Type": "video/mp4",
+        }
+
+        if range_header:
+            start, end = range_header.replace("bytes=", "").split("-")
+            start = int(start)
+            end = int(end) if end else file_size - 1
+
+            headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+            headers["Content-Length"] = str(end - start + 1)
+
+            delete_later(out_path)
+            return StreamingResponse(
+                file_iterator(start, end),
+                status_code=206,
+                headers=headers,
+            )
+
+        headers["Content-Length"] = str(file_size)
+        delete_later(out_path)
+        return StreamingResponse(
+            file_iterator(),
+            headers=headers,
         )
 
     raise HTTPException(503, "mux stream failed")
