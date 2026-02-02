@@ -370,6 +370,31 @@ function updatePlayer(){
 backendSelect.addEventListener("change", updatePlayer);
 updatePlayer();
 </script>
+
+<script>
+function setMode(mode){
+    const wrapper = document.querySelector(".player-wrapper");
+
+    if(mode === "nocookie"){
+        const iframe = document.createElement("iframe");
+        iframe.src = "https://www.youtube-nocookie.com/embed/{{ videoid }}?autoplay=1&rel=0";
+        iframe.width = "100%";
+        iframe.height = "480";
+        iframe.allow =
+            "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+        iframe.allowFullscreen = true;
+        iframe.style.border = "none";
+
+        wrapper.innerHTML = "";
+        wrapper.appendChild(iframe);
+        return;
+    }
+
+    if(mode === "stream"){
+        updatePlayer();
+    }
+}
+</script>
 <!-- ===================== 追記ここまで ===================== -->
 
 </body>
