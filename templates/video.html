@@ -168,6 +168,31 @@
             transform: translateX(-50%) translateY(0);
         }
     }
+
+    /* ===== 追記：ローディング ===== */
+    .loading-overlay{
+        position:absolute;
+        inset:0;
+        background:rgba(0,0,0,.55);
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        z-index:6;
+        border-radius:14px;
+    }
+
+    .spinner{
+        width:48px;
+        height:48px;
+        border:4px solid rgba(255,255,255,.3);
+        border-top-color:#fff;
+        border-radius:50%;
+        animation:spin 1s linear infinite;
+    }
+
+    @keyframes spin{
+        to{ transform:rotate(360deg); }
+    }
 </style>
 </head>
 
@@ -182,6 +207,11 @@
     <div id="videoError" class="video-error-alert" style="display:none">
         ⚠ 動画の取得に失敗しました。別の再生方法をお試しください。
         <span class="close-btn" onclick="hideVideoError()">×</span>
+    </div>
+
+    <!-- 追記：ローディング -->
+    <div id="loading" class="loading-overlay" style="display:none">
+        <div class="spinner"></div>
     </div>
 
     <video id="videoPlayer" controls
@@ -216,6 +246,7 @@
 <div class="option-box">
     <button onclick="setMode('nocookie')">nocookie再生</button>
     <button onclick="setMode('stream')">stream再生</button>
+    <button onclick="retryVideo()">🔄 再読み込み</button>
 
     <select id="backendSelect">
         <option value="main">main</option>
@@ -256,9 +287,13 @@ const video = document.getElementById("videoPlayer");
 const backendSelect = document.getElementById("backendSelect");
 const qualitySelect = document.getElementById("qualitySelect");
 const errorAlert = document.getElementById("videoError");
+const loading = document.getElementById("loading");
 
 let dashPlayer = null;
 let hlsPlayer = null;
+
+function showLoading(){ if(loading) loading.style.display="flex"; }
+function hideLoading(){ if(loading) loading.style.display="none"; }
 
 function showVideoError(){
     errorAlert.style.display = "block";
@@ -282,176 +317,77 @@ function getStreamBase(){
 video.src = urls[1] || urls[0];
 </script>
 
-<!-- ===================== ここから追記（既存コードは一切変更なし） ===================== -->
-<script>
-const originalVideoHTML = document.querySelector(".player-wrapper").innerHTML;
-
-async function playWkt(video){
-    try{
-        const api =
-            getStreamBase() +
-            "?v={{ videoid }}" +
-            "&q=" + qualitySelect.value +
-            "&wkt=1";
-
-        const res = await fetch(api);
-        if(!res.ok) throw { type:"api" };
-
-        const info = await res.json();
-        if(!info.videoUrl || !info.audioUrl) throw { type:"json" };
-
-        if(!window.MediaSource){
-            video.src = info.videoUrl;
-            video.play().catch(()=>showVideoErrorWithReason("play"));
-            watchPlayback(video);
-            return;
-        }
-
-        const ms = new MediaSource();
-        video.src = URL.createObjectURL(ms);
-
-        ms.addEventListener("error", ()=>showVideoErrorWithReason("mse"));
-
-        ms.addEventListener("sourceopen", async ()=>{
-            try{
-                const vb = ms.addSourceBuffer(info.mimeVideo || 'video/webm; codecs="vp9"');
-                const ab = ms.addSourceBuffer(info.mimeAudio || 'audio/webm; codecs="opus"');
-
-                const vbuf = await (await fetch(info.videoUrl)).arrayBuffer();
-                const abuf = await (await fetch(info.audioUrl)).arrayBuffer();
-
-                vb.appendBuffer(vbuf);
-                vb.addEventListener("updateend", ()=>{
-                    ab.appendBuffer(abuf);
-                }, { once:true });
-
-                ab.addEventListener("updateend", ()=>{
-                    ms.endOfStream();
-                    video.play().catch(()=>showVideoErrorWithReason("play"));
-                    watchPlayback(video);
-                }, { once:true });
-            }catch{
-                showVideoErrorWithReason("append");
-            }
-        });
-    }catch(e){
-        showVideoErrorWithReason(e.type || "unknown");
-    }
-}
-
-function updatePlayer(){
-    const backend = backendSelect.value;
-    const wrapper = document.querySelector(".player-wrapper");
-
-    if(backend === "wkt"){
-        wrapper.innerHTML = "";
-        const v = document.createElement("video");
-        v.controls = true;
-        v.poster = "https://img.youtube.com/vi/{{ videoid }}/0.jpg";
-        v.style.width = "100%";
-        v.onerror = ()=>showVideoErrorWithReason("video");
-        wrapper.appendChild(v);
-        playWkt(v);
-        return;
-    }
-
-    if(backend === "yobiyobi"){
-        const iframe = document.createElement("iframe");
-        const url = `/emobedhigh.html?video_id={{ videoid }}&backend=yobiyobi`;
-        iframe.src = url;
-        iframe.width = "100%";
-        iframe.height = "480";
-        iframe.style.border = "none";
-
-        wrapper.innerHTML = "";
-        wrapper.appendChild(iframe);
-    } else {
-        wrapper.innerHTML = originalVideoHTML;
-        const video = document.getElementById("videoPlayer");
-        if(video){
-            video.src = urls[1] || urls[0];
-            video.onerror = ()=>showVideoErrorWithReason("video");
-            watchPlayback(video);
-        }
-    }
-}
-
-backendSelect.addEventListener("change", updatePlayer);
-updatePlayer();
-</script>
-
 <script>
 function watchPlayback(video, timeout = 5000){
-    let ok = false;
+    let resolved = false;
+    showLoading();
 
-    const success = () => { ok = true; };
+    const success = ()=>{
+        resolved = true;
+        hideLoading();
+    };
+
+    const fail = (reason)=>{
+        if(resolved) return;
+        resolved = true;
+        hideLoading();
+        showVideoErrorWithReason(reason);
+    };
 
     setTimeout(()=>{
-        if(!ok){
-            showVideoErrorWithReason("timeout");
+        if(!resolved){
+            if(video.videoWidth === 0){
+                fail("video");
+            }else{
+                fail("timeout");
+            }
         }
     }, timeout);
 
     video.addEventListener("playing", success, { once:true });
     video.addEventListener("canplay", success, { once:true });
+    video.addEventListener("error", ()=>fail("video"), { once:true });
+    video.addEventListener("stalled", ()=>fail("stalled"), { once:true });
 
-    video.addEventListener("stalled", ()=>showVideoErrorWithReason("stalled"), { once:true });
     video.addEventListener("waiting", ()=>{
         setTimeout(()=>{
             if(video.readyState < 3){
-                showVideoErrorWithReason("waiting");
+                fail("waiting");
             }
         },3000);
     }, { once:true });
 }
+</script>
 
+<script>
 function showVideoErrorWithReason(reason){
     const messages = {
-        api: "⚠ 動画情報の取得に失敗しました。",
-        json: "⚠ 動画データが不正です。",
-        mse: "⚠ MediaSource 初期化に失敗しました。",
-        append: "⚠ 映像・音声の結合に失敗しました。",
-        play: "⚠ 再生が開始できませんでした。",
+        video: "⚠ 動画の読み込みに失敗しました。",
         stalled: "⚠ 再生が停止しました。",
         waiting: "⚠ 読み込みが完了しません。",
-        timeout: "⚠ 再生が開始されませんでした。",
-        video: "⚠ 動画の読み込みに失敗しました。",
-        unknown: "⚠ 不明なエラーが発生しました。"
+        timeout: "⚠ 再生が開始されませんでした。"
     };
 
     errorAlert.innerHTML =
-        messages[reason] +
+        (messages[reason] || "⚠ 不明なエラーが発生しました。") +
         ' <button onclick="retryVideo()" style="margin-left:10px;padding:4px 10px;border-radius:999px;border:none;cursor:pointer">再試行</button>' +
         '<span class="close-btn" onclick="hideVideoError()">×</span>';
 
     showVideoError();
 }
-
-function retryVideo(){
-    hideVideoError();
-    updatePlayer();
-}
 </script>
 
 <script>
-function setMode(mode){
-    const wrapper = document.querySelector(".player-wrapper");
-
-    if(mode === "nocookie"){
-        wrapper.innerHTML = "";
-        const iframe = document.createElement("iframe");
-        iframe.src = "https://www.youtube-nocookie.com/embed/{{ videoid }}?rel=0";
-        iframe.width = "100%";
-        iframe.height = "480";
-        iframe.allow =
-            "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
-        iframe.allowFullscreen = true;
-        iframe.style.border = "none";
-        wrapper.appendChild(iframe);
+function retryVideo(){
+    hideVideoError();
+    const v = document.getElementById("videoPlayer");
+    if(v){
+        showLoading();
+        v.load();
+        watchPlayback(v);
     }
 }
 </script>
-<!-- ===================== 追記ここまで ===================== -->
 
 </body>
 </html>
