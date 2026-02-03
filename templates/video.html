@@ -295,39 +295,47 @@ async function playWkt(video){
             "&wkt=1";
 
         const res = await fetch(api);
-        if(!res.ok) throw new Error("api error");
+        if(!res.ok) throw { type:"api" };
 
         const info = await res.json();
-        if(!info.videoUrl || !info.audioUrl) throw new Error("invalid json");
+        if(!info.videoUrl || !info.audioUrl) throw { type:"json" };
 
         if(!window.MediaSource){
             video.src = info.videoUrl;
-            video.play();
+            video.play().catch(()=>showVideoErrorWithReason("play"));
+            watchPlayback(video);
             return;
         }
 
         const ms = new MediaSource();
         video.src = URL.createObjectURL(ms);
 
+        ms.addEventListener("error", ()=>showVideoErrorWithReason("mse"));
+
         ms.addEventListener("sourceopen", async ()=>{
-            const vb = ms.addSourceBuffer(info.mimeVideo || 'video/webm; codecs="vp9"');
-            const ab = ms.addSourceBuffer(info.mimeAudio || 'audio/webm; codecs="opus"');
+            try{
+                const vb = ms.addSourceBuffer(info.mimeVideo || 'video/webm; codecs="vp9"');
+                const ab = ms.addSourceBuffer(info.mimeAudio || 'audio/webm; codecs="opus"');
 
-            const vbuf = await (await fetch(info.videoUrl)).arrayBuffer();
-            const abuf = await (await fetch(info.audioUrl)).arrayBuffer();
+                const vbuf = await (await fetch(info.videoUrl)).arrayBuffer();
+                const abuf = await (await fetch(info.audioUrl)).arrayBuffer();
 
-            vb.appendBuffer(vbuf);
-            vb.addEventListener("updateend", ()=>{
-                ab.appendBuffer(abuf);
-            }, { once:true });
+                vb.appendBuffer(vbuf);
+                vb.addEventListener("updateend", ()=>{
+                    ab.appendBuffer(abuf);
+                }, { once:true });
 
-            ab.addEventListener("updateend", ()=>{
-                ms.endOfStream();
-                video.play();
-            }, { once:true });
+                ab.addEventListener("updateend", ()=>{
+                    ms.endOfStream();
+                    video.play().catch(()=>showVideoErrorWithReason("play"));
+                    watchPlayback(video);
+                }, { once:true });
+            }catch{
+                showVideoErrorWithReason("append");
+            }
         });
     }catch(e){
-        showVideoError();
+        showVideoErrorWithReason(e.type || "unknown");
     }
 }
 
@@ -341,7 +349,7 @@ function updatePlayer(){
         v.controls = true;
         v.poster = "https://img.youtube.com/vi/{{ videoid }}/0.jpg";
         v.style.width = "100%";
-        v.onerror = showVideoError;
+        v.onerror = ()=>showVideoErrorWithReason("video");
         wrapper.appendChild(v);
         playWkt(v);
         return;
@@ -362,7 +370,8 @@ function updatePlayer(){
         const video = document.getElementById("videoPlayer");
         if(video){
             video.src = urls[1] || urls[0];
-            video.onerror = showVideoError;
+            video.onerror = ()=>showVideoErrorWithReason("video");
+            watchPlayback(video);
         }
     }
 }
@@ -370,7 +379,60 @@ function updatePlayer(){
 backendSelect.addEventListener("change", updatePlayer);
 updatePlayer();
 </script>
+
+<script>
+function watchPlayback(video, timeout = 5000){
+    let ok = false;
+
+    const success = () => { ok = true; };
+
+    setTimeout(()=>{
+        if(!ok){
+            showVideoErrorWithReason("timeout");
+        }
+    }, timeout);
+
+    video.addEventListener("playing", success, { once:true });
+    video.addEventListener("canplay", success, { once:true });
+
+    video.addEventListener("stalled", ()=>showVideoErrorWithReason("stalled"), { once:true });
+    video.addEventListener("waiting", ()=>{
+        setTimeout(()=>{
+            if(video.readyState < 3){
+                showVideoErrorWithReason("waiting");
+            }
+        },3000);
+    }, { once:true });
+}
+
+function showVideoErrorWithReason(reason){
+    const messages = {
+        api: "⚠ 動画情報の取得に失敗しました。",
+        json: "⚠ 動画データが不正です。",
+        mse: "⚠ MediaSource 初期化に失敗しました。",
+        append: "⚠ 映像・音声の結合に失敗しました。",
+        play: "⚠ 再生が開始できませんでした。",
+        stalled: "⚠ 再生が停止しました。",
+        waiting: "⚠ 読み込みが完了しません。",
+        timeout: "⚠ 再生が開始されませんでした。",
+        video: "⚠ 動画の読み込みに失敗しました。",
+        unknown: "⚠ 不明なエラーが発生しました。"
+    };
+
+    errorAlert.innerHTML =
+        messages[reason] +
+        ' <button onclick="retryVideo()" style="margin-left:10px;padding:4px 10px;border-radius:999px;border:none;cursor:pointer">再試行</button>' +
+        '<span class="close-btn" onclick="hideVideoError()">×</span>';
+
+    showVideoError();
+}
+
+function retryVideo(){
+    hideVideoError();
+    updatePlayer();
+}
+</script>
 <!-- ===================== 追記ここまで ===================== -->
 
 </body>
-</html>
+    </html>
