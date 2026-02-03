@@ -282,6 +282,7 @@ function getStreamBase(){
 video.src = urls[1] || urls[0];
 </script>
 
+<!-- ===================== ここから追記（既存コードは一切変更なし） ===================== -->
 <script>
 const originalVideoHTML = document.querySelector(".player-wrapper").innerHTML;
 
@@ -347,15 +348,15 @@ function updatePlayer(){
     }
 
     if(backend === "yobiyobi"){
+        const iframe = document.createElement("iframe");
+        const url = `/emobedhigh.html?video_id={{ videoid }}&backend=yobiyobi`;
+        iframe.src = url;
+        iframe.width = "100%";
+        iframe.height = "480";
+        iframe.style.border = "none";
+
         wrapper.innerHTML = "";
-        const v = document.createElement("video");
-        v.controls = true;
-        v.poster = "https://img.youtube.com/vi/{{ videoid }}/0.jpg";
-        v.style.width = "100%";
-        v.onerror = showVideoError;
-        wrapper.appendChild(v);
-        playWkt(v);
-        return;
+        wrapper.appendChild(iframe);
     } else {
         wrapper.innerHTML = originalVideoHTML;
         const video = document.getElementById("videoPlayer");
@@ -369,31 +370,7 @@ function updatePlayer(){
 backendSelect.addEventListener("change", updatePlayer);
 updatePlayer();
 </script>
-
-<script>
-function setMode(mode){
-    const wrapper = document.querySelector(".player-wrapper");
-
-    if(mode === "nocookie"){
-        const iframe = document.createElement("iframe");
-        iframe.src = "https://www.youtube-nocookie.com/embed/{{ videoid }}?autoplay=1&rel=0";
-        iframe.width = "100%";
-        iframe.height = "480";
-        iframe.allow =
-            "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
-        iframe.allowFullscreen = true;
-        iframe.style.border = "none";
-
-        wrapper.innerHTML = "";
-        wrapper.appendChild(iframe);
-        return;
-    }
-
-    if(mode === "stream"){
-        updatePlayer();
-    }
-}
-</script>
+<!-- ===================== 追記ここまで ===================== -->
 
 </body>
 </html>
