@@ -1,15 +1,12 @@
-# main.py
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import StreamingResponse
-import requests
-import random
-import subprocess
-import uuid
-import os
-import threading
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+import requests, random, time
 
 app = FastAPI()
 
+# ===============================
+# CONFIG
+# ===============================
 VIDEO_APIS = [
     "https://iv.melmac.space",
     "https://pol1.iv.ggtyler.dev",
@@ -18,194 +15,202 @@ VIDEO_APIS = [
     "https://yt.omada.cafe",
 ]
 
-TIMEOUT = 6
+STREAM_APIS = [
+    "https://yudlp.vercel.app/stream/",
+    "https://yt-dl-kappa.vercel.app/short/",
+]
+
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-
-TMP_DIR = "tmp"
-os.makedirs(TMP_DIR, exist_ok=True)
-
+TIMEOUT = 6
 
 # ===============================
-# Utils
+# CACHE / BLACKLIST
 # ===============================
-def try_json(url, params=None):
+SUCCESS_CACHE = {}        # video_id -> api
+FAIL_CACHE = {}           # api -> expire
+FAIL_TTL = 300            # sec
+
+def blacklisted(api):
+    return FAIL_CACHE.get(api, 0) > time.time()
+
+def mark_fail(api):
+    FAIL_CACHE[api] = time.time() + FAIL_TTL
+
+def mark_success(video_id, api):
+    SUCCESS_CACHE[video_id] = api
+
+# ===============================
+# UTILS
+# ===============================
+def try_json(url):
     try:
-        r = requests.get(url, params=params, headers=HEADERS, timeout=TIMEOUT)
+        r = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
         if r.status_code == 200:
             return r.json()
-    except Exception as e:
-        print("request error:", e)
+    except:
+        pass
     return None
 
-
-def is_video(fmt):
-    return (
-        fmt.get("url")
-        and isinstance(fmt.get("type"), str)
-        and fmt["type"].startswith("video")
-    )
-
-
-def is_audio(fmt):
-    return (
-        fmt.get("url")
-        and isinstance(fmt.get("type"), str)
-        and fmt["type"].startswith("audio")
-    )
-
-
-def is_h264(fmt):
-    return "video/mp4" in (fmt.get("type") or "") and "avc1" in (fmt.get("codecs") or "")
-
-
-def is_aac(fmt):
-    return "audio/mp4" in (fmt.get("type") or "") and "mp4a" in (fmt.get("codecs") or "")
-
-
-def video_score(fmt):
-    return (
-        (fmt.get("height") or 0) * 1_000_000
-        + (fmt.get("fps") or 0) * 10_000
-        + (fmt.get("bitrate") or 0)
-    )
-
-
-def audio_score(fmt):
-    return fmt.get("bitrate") or 0
-
+def is_video(f): return str(f.get("type","")).startswith("video")
+def is_audio(f): return str(f.get("type","")).startswith("audio")
 
 # ===============================
-# 最適 video + audio 選択
+# STREAM URL DIRECT
 # ===============================
-def select_best_video_audio(formats, safari=False):
-    videos = [f for f in formats if is_video(f)]
-    audios = [f for f in formats if is_audio(f)]
-
-    if not videos or not audios:
-        return None, None
-
-    if safari:
-        h264 = [v for v in videos if is_h264(v)]
-        videos = h264 or videos
-
-    videos.sort(key=video_score, reverse=True)
-    best_video = videos[0]
-
-    jp = [a for a in audios if "ja" in (a.get("language") or "").lower()]
-    non_en = [a for a in audios if "en" not in (a.get("language") or "").lower()]
-    target = jp or non_en or audios
-
-    if safari:
-        aac = [a for a in target if is_aac(a)]
-        target = aac or target
-
-    target.sort(key=audio_score, reverse=True)
-    best_audio = target[0]
-
-    return best_video, best_audio
-
+def try_direct(video_id):
+    for base in STREAM_APIS:
+        if blacklisted(base):
+            continue
+        data = try_json(base + video_id)
+        if data and data.get("url"):
+            mark_success(video_id, base)
+            return data["url"]
+        mark_fail(base)
+    return None
 
 # ===============================
-# tmp 自動削除
+# MSE API
 # ===============================
-def delete_later(path, delay=60):
-    def _del():
-        try:
-            os.remove(path)
-        except Exception:
-            pass
-    threading.Timer(delay, _del).start()
+@app.get("/api/mse")
+def api_mse(video_id: str):
+    direct = try_direct(video_id)
+    if direct:
+        return {"mode": "direct", "url": direct}
 
-
-# ===============================
-# 動画＋音声 mux + Range 対応
-# ===============================
-@app.get("/api/stream/mux")
-def api_stream_mux(request: Request, video_id: str, safari: bool = False):
     random.shuffle(VIDEO_APIS)
 
     for base in VIDEO_APIS:
+        if blacklisted(base):
+            continue
+
         data = try_json(f"{base}/api/v1/videos/{video_id}")
         if not data:
+            mark_fail(base)
             continue
 
-        formats = data.get("adaptiveFormats")
-        if not isinstance(formats, list):
+        fmts = data.get("adaptiveFormats", [])
+        videos = [f for f in fmts if is_video(f)]
+        audios = [f for f in fmts if is_audio(f)]
+
+        if not videos or not audios:
+            mark_fail(base)
             continue
 
-        video, audio = select_best_video_audio(formats, safari=safari)
-        if not video or not audio:
-            continue
+        videos.sort(key=lambda x:(x.get("height",0),x.get("fps",0)), reverse=True)
+        audios.sort(key=lambda x:x.get("bitrate",0), reverse=True)
 
-        uid = uuid.uuid4().hex
-        out_path = os.path.join(TMP_DIR, f"{uid}.mp4")
-
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-headers", "User-Agent: Mozilla/5.0\r\n",
-            "-reconnect", "1",
-            "-reconnect_streamed", "1",
-            "-reconnect_delay_max", "5",
-            "-i", video["url"],
-            "-i", audio["url"],
-            "-c:v", "copy",
-            "-c:a", "copy",
-            "-movflags", "+faststart",
-            out_path,
-        ]
-
-        try:
-            subprocess.run(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                check=True,
-            )
-        except Exception as e:
-            print("ffmpeg error:", e)
-            continue
-
-        file_size = os.path.getsize(out_path)
-        range_header = request.headers.get("range")
-
-        def file_iterator(start=0, end=None, chunk_size=1024 * 1024):
-            with open(out_path, "rb") as f:
-                f.seek(start)
-                remaining = (end - start + 1) if end else None
-                while True:
-                    chunk = f.read(chunk_size if not remaining else min(chunk_size, remaining))
-                    if not chunk:
-                        break
-                    if remaining:
-                        remaining -= len(chunk)
-                    yield chunk
-
-        headers = {
-            "Accept-Ranges": "bytes",
-            "Content-Type": "video/mp4",
+        mark_success(video_id, base)
+        return {
+            "mode": "mse",
+            "video": videos[0]["url"],
+            "audio": audios[0]["url"]
         }
 
-        if range_header:
-            start, end = range_header.replace("bytes=", "").split("-")
-            start = int(start)
-            end = int(end) if end else file_size - 1
+    raise HTTPException(503)
 
-            headers["Content-Range"] = f"bytes {start}-{end}/{file_size}"
-            headers["Content-Length"] = str(end - start + 1)
+# ===============================
+# ROOT HTML (PLAYER)
+# ===============================
+@app.get("/", response_class=HTMLResponse)
+def index():
+    return """
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>MSE Player</title>
+<style>
+body{background:#000;color:#fff;font-family:sans-serif;text-align:center}
+video{width:90%;max-width:960px;margin-top:20px;background:#000}
+#error{color:#f55;margin-top:10px}
+button{padding:8px 16px;font-size:16px}
+</style>
+</head>
+<body>
 
-            delete_later(out_path)
-            return StreamingResponse(
-                file_iterator(start, end),
-                status_code=206,
-                headers=headers,
-            )
+<h2>MSE Player</h2>
+<input id="vid" placeholder="YouTube videoId">
+<button onclick="start()">再生</button>
 
-        headers["Content-Length"] = str(file_size)
-        delete_later(out_path)
-        return StreamingResponse(
-            file_iterator(),
-            headers=headers,
-        )
+<video id="v" controls></video>
+<div id="error"></div>
 
-    raise HTTPException(503, "mux stream failed")
+<script>
+const video = document.getElementById("v");
+const errorBox = document.getElementById("error");
+let currentId = null;
+
+function show(msg){
+  errorBox.textContent = msg;
+}
+
+async function start(){
+  currentId = document.getElementById("vid").value.trim();
+  if(!currentId) return;
+  play(currentId);
+}
+
+async function play(id){
+  show("");
+  video.pause();
+  video.removeAttribute("src");
+  video.load();
+
+  let res = await fetch("/api/mse?video_id="+id);
+  if(!res.ok){
+    show("取得失敗");
+    return;
+  }
+  let info = await res.json();
+
+  if(info.mode === "direct"){
+    video.src = info.url;
+    video.play().catch(()=>show("再生失敗"));
+    return;
+  }
+
+  const ms = new MediaSource();
+  video.src = URL.createObjectURL(ms);
+
+  ms.addEventListener("sourceopen", async ()=>{
+    const ab = ms.addSourceBuffer('audio/mp4; codecs="mp4a.40.2"');
+    const vb = ms.addSourceBuffer('video/mp4; codecs="avc1.64001f"');
+
+    try{
+      // 🔊 audio first
+      const a = await fetch(info.audio).then(r=>r.arrayBuffer());
+      ab.appendBuffer(a);
+    }catch{
+      show("音声取得失敗");
+      return;
+    }
+
+    ab.addEventListener("updateend", async ()=>{
+      video.play().catch(()=>{});
+      try{
+        // 🎥 video later
+        const v = await fetch(info.video).then(r=>r.arrayBuffer());
+        vb.appendBuffer(v);
+      }catch{
+        show("映像取得失敗");
+      }
+
+      vb.addEventListener("updateend", ()=>{
+        try{ ms.endOfStream(); }catch{}
+      }, {once:true});
+    }, {once:true});
+  });
+}
+
+// URL 期限切れ対策
+video.onerror = ()=>{
+  show("再接続中…");
+  if(currentId){
+    setTimeout(()=>play(currentId), 1000);
+  }
+};
+</script>
+
+</body>
+</html>
+"""
