@@ -169,7 +169,6 @@
         }
     }
 
-    /* ===== 追記：ローディング ===== */
     .loading-overlay{
         position:absolute;
         inset:0;
@@ -209,7 +208,6 @@
         <span class="close-btn" onclick="hideVideoError()">×</span>
     </div>
 
-    <!-- 追記：ローディング -->
     <div id="loading" class="loading-overlay" style="display:none">
         <div class="spinner"></div>
     </div>
@@ -387,6 +385,26 @@ function retryVideo(){
         watchPlayback(v);
     }
 }
+</script>
+
+<!-- ★ 追記：yobiyobi 実再生対応（既存コード変更なし） -->
+<script>
+function applyStream(){
+    const base = getStreamBase();
+    const q = qualitySelect.value === "0" ? "best" : "low";
+    const url = base + "?video_id={{ videoid }}&quality=" + q;
+
+    hideVideoError();
+    showLoading();
+
+    video.pause();
+    video.src = url;
+    video.load();
+    watchPlayback(video);
+}
+
+backendSelect.addEventListener("change", applyStream);
+qualitySelect.addEventListener("change", applyStream);
 </script>
 
 </body>
