@@ -417,5 +417,37 @@ backendSelect.addEventListener("change", applyStream);
 qualitySelect.addEventListener("change", applyStream);
 </script>
 
+<script>
+(function(){
+    const KEY = "watch_history";
+    const MAX = 50;
+
+    const data = {
+        id: "{{ videoid }}",
+        title: "{{ videotitle | e }}",
+        author: "{{ author | e }}",
+        thumb: "https://img.youtube.com/vi/{{ videoid }}/0.jpg",
+        time: Date.now()
+    };
+
+    let list = [];
+    try {
+        list = JSON.parse(localStorage.getItem(KEY)) || [];
+    } catch(e){
+        list = [];
+    }
+
+    list = list.filter(v => v.id !== data.id);
+    list.unshift(data);
+
+    if(list.length > MAX){
+        list = list.slice(0, MAX);
+    }
+
+    localStorage.setItem(KEY, JSON.stringify(list));
+})();
+</script>
+
+
 </body>
 </html>
